@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Luxe - Premium Multi-Vendor Marketplace",
-  description: "Discover exclusive apparel from independent premium brands.",
+  title: "AFRODER - Premium Multi-Vendor Marketplace",
+  description: "Discover premium apparel from independent brands.",
 };
 
 import { AuthProvider } from "@/components/providers/AuthProvider";

@@ -25,48 +25,35 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #09090b;
+  /* Premium Off-White Background */
+  --background: #fcfcfc;
+  /* Charcoal text instead of pure black for elegance */
+  --foreground: #111111;
   
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
+  /* Primary buttons/elements */
+  --primary: #111111;
+  --primary-foreground: #ffffff;
   
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
+  /* Secondary/Subtle elements */
+  --secondary: #f0f0f0;
+  --secondary-foreground: #111111;
   
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
+  /* Muted backgrounds and text */
+  --muted: #f0f0f0;
+  --muted-foreground: #666666;
   
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
+  --accent: #f0f0f0;
+  --accent-foreground: #111111;
   
-  --border: #e4e4e7;
-  --card: #ffffff;
-  --card-foreground: #09090b;
+  /* Extremely subtle borders */
+  --border: #e5e5e5;
+  
+  /* Cards blend into background */
+  --card: #fcfcfc;
+  --card-foreground: #111111;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #09090b;
-    --foreground: #fafafa;
-    
-    --primary: #fafafa;
-    --primary-foreground: #18181b;
-    
-    --secondary: #27272a;
-    --secondary-foreground: #fafafa;
-    
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    
-    --accent: #27272a;
-    --accent-foreground: #fafafa;
-    
-    --border: #27272a;
-    --card: #09090b;
-    --card-foreground: #fafafa;
-  }
-}
+/* Dark mode overrides removed to force light theme globally */
 
 @layer base {
   * {
@@ -76,5 +63,48 @@
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+  
+  /* Elegant typography overrides */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    letter-spacing: -0.03em;
+  }
+}
+
+@keyframes silver-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-silver-shimmer {
+  background: linear-gradient(to right, #9ca3af, #f9fafb, #9ca3af, #e5e7eb, #9ca3af);
+  background-size: 200% auto;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: silver-shimmer 30s ease-in-out infinite;
+}
+
+.animate-silver-bg {
+  background: linear-gradient(to right, #9ca3af, #f9fafb, #9ca3af, #e5e7eb, #9ca3af);
+  background-size: 200% auto;
+  animation: silver-shimmer 30s ease-in-out infinite;
+}
+
+.text-3d-silver {
+  filter: 
+    drop-shadow(1px 1px 0px #cbd5e1)
+    drop-shadow(2px 2px 0px #94a3b8)
+    drop-shadow(3px 3px 0px #64748b)
+    drop-shadow(4px 8px 12px rgba(0,0,0,0.3));
 }

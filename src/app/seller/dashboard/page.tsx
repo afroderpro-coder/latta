@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { supabase } from "@/utils/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Package, ShoppingBag, DollarSign } from "lucide-react";
+import { Package, ShoppingBag, DollarSign, Settings } from "lucide-react";
 
 export default function SellerDashboardPage() {
   const { profile } = useAuthStore();
@@ -32,7 +33,7 @@ export default function SellerDashboardPage() {
         .eq("store_id", store.id);
 
       let revenue = 0;
-      let orderCount = orderItems?.length || 0;
+      const orderCount = orderItems?.length || 0;
       
       if (orderItems) {
         revenue = orderItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
@@ -52,7 +53,7 @@ export default function SellerDashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your store's performance.</p>
+        <p className="text-muted-foreground">Overview of your store&apos;s performance.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -62,7 +63,7 @@ export default function SellerDashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{stats.totalRevenue.toFixed(2)}</div>
           </CardContent>
         </Card>
         
@@ -85,6 +86,34 @@ export default function SellerDashboardPage() {
             <div className="text-2xl font-bold">{stats.totalProducts}</div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold tracking-tight mb-4">Quick Actions</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Link href="/seller/products/new">
+            <div className="flex flex-col items-center justify-center p-6 border border-border rounded-xl bg-card hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer text-center space-y-3">
+              <div className="p-3 bg-primary/10 rounded-full text-primary">
+                <Package className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="font-medium">Add New Product</div>
+                <div className="text-xs text-muted-foreground mt-1">List a new item for sale</div>
+              </div>
+            </div>
+          </Link>
+          <Link href="/seller/settings">
+            <div className="flex flex-col items-center justify-center p-6 border border-border rounded-xl bg-card hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer text-center space-y-3">
+              <div className="p-3 bg-primary/10 rounded-full text-primary">
+                <Settings className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="font-medium">Manage Profile</div>
+                <div className="text-xs text-muted-foreground mt-1">Update store settings</div>
+              </div>
+            </div>
+          </Link>
+        </div>
       </div>
     </div>
   );

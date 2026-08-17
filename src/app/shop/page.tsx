@@ -85,10 +85,10 @@ export default async function ShopPage() {
                 </div>
                 <CardContent className="p-4">
                   <p className="text-xs text-muted-foreground mb-1">
-                    {product.stores?.shop_name || "Luxe Store"}
+                    {product.stores?.shop_name || "AFRODER Store"}
                   </p>
                   <h3 className="font-semibold text-lg line-clamp-1">{product.title}</h3>
-                  <p className="font-medium mt-1">${product.price}</p>
+                  <p className="font-medium mt-1">₹{product.price}</p>
                 </CardContent>
               </Card>
             </Link>

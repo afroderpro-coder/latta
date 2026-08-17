@@ -12,6 +12,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const unwrappedParams = use(params);
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -37,14 +38,20 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const handleAddToCart = () => {
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+      alert("Please select a size first.");
+      return;
+    }
+
     addItem({
-      id: product.id,
+      id: selectedSize ? `${product.id}-${selectedSize}` : product.id,
       productId: product.id,
       storeId: product.store_id,
       name: product.title,
       price: product.price,
       quantity: 1,
       imageUrl: product.image_urls?.[0] || "",
+      variant: selectedSize ? { size: selectedSize, color: "" } : undefined,
     });
   };
 
@@ -80,11 +87,32 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             {product.stores?.shop_name}
           </Link>
           <h1 className="text-4xl font-bold tracking-tight mb-4">{product.title}</h1>
-          <p className="text-2xl font-medium mb-6">${product.price}</p>
+          <p className="text-2xl font-medium mb-6">₹{product.price}</p>
           
           <div className="prose text-muted-foreground mb-8">
             <p>{product.description || "No description provided."}</p>
           </div>
+          
+          {product.sizes && product.sizes.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-sm font-medium mb-3">Select Size</h3>
+              <div className="flex flex-wrap gap-2">
+                {product.sizes.map((size: string) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    className={`h-10 min-w-[3rem] px-4 rounded-md border text-sm font-medium transition-colors ${
+                      selectedSize === size
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           
           <div className="mt-auto pt-8 border-t border-border">
             <Button size="lg" className="w-full h-14 text-lg" onClick={handleAddToCart}>

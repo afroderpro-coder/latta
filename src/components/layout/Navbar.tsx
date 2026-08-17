@@ -3,30 +3,63 @@
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCartStore } from "@/store/useCartStore";
-import { ShoppingBag, User, LogOut } from "lucide-react";
+import { ShoppingBag, User, LogOut, Search, Menu, X } from "lucide-react";
+import SpecularButton from "@/components/ui/SpecularButton";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export function Navbar() {
-  const { profile, signOut } = useAuthStore();
+  const { user, profile, signOut } = useAuthStore();
   const { items } = useCartStore();
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const cartItemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setIsMobileMenuOpen(false);
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 mx-auto items-center justify-between px-4">
-        <div className="flex items-center space-x-8">
+    <header className="sticky top-0 z-50 w-full border-b border-gray-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-20 mx-auto items-center justify-between px-4 md:px-8 relative">
+        {/* Left: Logo */}
+        <div className="flex items-center md:w-1/4 justify-start">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl tracking-tighter">Luxe</span>
+            <span className="font-bold text-2xl tracking-tighter">AFRODER</span>
           </Link>
-          <nav className="hidden md:flex items-center space-x-6 text-sm font-medium text-muted-foreground">
-            <Link href="/shop" className="hover:text-foreground transition-colors">Shop</Link>
-            <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
-            <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+        </div>
+
+        {/* Center: Navigation */}
+        <div className="hidden md:flex w-1/2 justify-center">
+          <nav className="flex items-center space-x-8 text-sm font-medium text-muted-foreground">
+            <Link href="/" className="hover:text-foreground transition-colors tracking-wide">Home</Link>
+            <Link href="/shop" className="hover:text-foreground transition-colors tracking-wide">Shop</Link>
+            <Link href="/about" className="hover:text-foreground transition-colors tracking-wide">About</Link>
+            <Link href="/contact" className="hover:text-foreground transition-colors tracking-wide">Contact Us</Link>
           </nav>
         </div>
         
-        <div className="flex items-center space-x-4">
+        {/* Right: Actions */}
+        <div className="flex items-center md:w-1/4 justify-end space-x-2 lg:space-x-4">
+          <form onSubmit={handleSearch} className="hidden lg:flex relative items-center">
+            <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+              type="search"
+              placeholder="Search stores or items..."
+              className="w-[200px] xl:w-[250px] h-9 pl-9 rounded-full bg-secondary/50 border-transparent focus-visible:bg-background text-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </form>
+
           <Link href="/cart" className="relative">
             <Button variant="ghost" size="icon" className="relative">
               <ShoppingBag className="h-5 w-5" />
@@ -38,30 +71,120 @@ export function Navbar() {
             </Button>
           </Link>
 
-          {profile ? (
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={profile.role === "seller" ? "/seller/dashboard" : "/profile"}>
-                  <User className="mr-2 h-4 w-4" />
-                  {profile.full_name || "Profile"}
+          {/* Desktop Auth */}
+          <div className="hidden md:flex items-center">
+            {user ? (
+              <div className="flex items-center space-x-1 lg:space-x-2">
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={profile?.role === "seller" ? "/seller/dashboard" : "/profile"}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline-block">
+                      {profile?.role === "seller" ? "Dashboard" : (profile?.full_name || "Profile")}
+                    </span>
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => signOut()}>
+                  <LogOut className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link href="/auth?role=client&mode=signin">
+                  <Button variant="ghost" size="sm">Login</Button>
                 </Link>
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => signOut()}>
-                <LogOut className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <Link href="/login">
-                <Button variant="ghost" size="sm">Sign In</Button>
-              </Link>
-              <Link href="/signup">
-                <Button size="sm">Sign Up</Button>
-              </Link>
-            </div>
-          )}
+                <Link href="/auth?role=seller&mode=signup">
+                  <SpecularButton
+                    size="sm"
+                    radius={8}
+                    tint="#ffffff"
+                    tintOpacity={0}
+                    blur={0}
+                    textColor="#f5f5f5"
+                    lineColor="#ffffff"
+                    baseColor="#171717"
+                    intensity={1}
+                    shineSize={10}
+                    shineFade={40}
+                    thickness={1}
+                    speed={0.35}
+                    followMouse
+                    proximity={250}
+                    autoAnimate={false}
+                  >
+                    Seller
+                  </SpecularButton>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </Button>
         </div>
       </div>
+
+      {/* Mobile Menu Dropdown */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden absolute top-20 left-0 w-full bg-background border-b border-gray-300 shadow-xl flex flex-col p-6 space-y-6">
+          <nav className="flex flex-col space-y-4">
+            <Link href="/" className="text-lg font-medium" onClick={() => setIsMobileMenuOpen(false)}>Home</Link>
+            <Link href="/shop" className="text-lg font-medium" onClick={() => setIsMobileMenuOpen(false)}>Shop</Link>
+            <Link href="/about" className="text-lg font-medium" onClick={() => setIsMobileMenuOpen(false)}>About</Link>
+            <Link href="/contact" className="text-lg font-medium" onClick={() => setIsMobileMenuOpen(false)}>Contact Us</Link>
+          </nav>
+          
+          <hr className="border-border" />
+
+          <form onSubmit={handleSearch} className="relative flex items-center">
+            <Search className="absolute left-3 h-5 w-5 text-muted-foreground" />
+            <Input 
+              type="search"
+              placeholder="Search..."
+              className="w-full h-12 pl-10 rounded-full bg-secondary/50 border-transparent text-base"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </form>
+
+          <div className="flex flex-col space-y-4">
+            {user ? (
+              <>
+                <Link 
+                  href={profile?.role === "seller" ? "/seller/dashboard" : "/profile"} 
+                  className="flex items-center text-lg font-medium"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <User className="mr-3 h-5 w-5" />
+                  {profile?.role === "seller" ? "Dashboard" : "Profile"}
+                </Link>
+                <button 
+                  onClick={() => { signOut(); setIsMobileMenuOpen(false); }} 
+                  className="flex items-center text-lg font-medium text-destructive"
+                >
+                  <LogOut className="mr-3 h-5 w-5" />
+                  Logout
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col space-y-3">
+                <Link href="/auth?role=client&mode=signin" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button className="w-full h-12 text-lg rounded-full" variant="outline">Login</Button>
+                </Link>
+                <Link href="/auth?role=seller&mode=signup" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button className="w-full h-12 text-lg rounded-full">Become a Seller</Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

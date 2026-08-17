@@ -98,7 +98,7 @@ export default function CartPage() {
                   <div className="flex justify-between">
                     <div>
                       <h3 className="font-semibold text-lg line-clamp-1">{item.name}</h3>
-                      <p className="text-muted-foreground">${item.price.toFixed(2)}</p>
+                      <p className="text-muted-foreground">₹{item.price.toFixed(2)}</p>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-600 hover:bg-red-500/10">
                       <Trash2 className="h-4 w-4" />
@@ -126,7 +126,7 @@ export default function CartPage() {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>₹{total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
@@ -136,7 +136,7 @@ export default function CartPage() {
               <div className="border-t border-border pt-4 mb-6">
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>₹{total.toFixed(2)}</span>
                 </div>
               </div>
               <Button className="w-full" size="lg" onClick={handleCheckout} isLoading={isCheckingOut}>

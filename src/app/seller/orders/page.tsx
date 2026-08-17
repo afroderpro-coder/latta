@@ -79,7 +79,7 @@ export default function SellerOrdersPage() {
                   <h3 className="font-semibold text-lg">{item.products?.title}</h3>
                   <div className="text-sm text-muted-foreground space-y-1 mt-1">
                     <p>Quantity: {item.quantity}</p>
-                    <p>Total: ${(item.quantity * item.unit_price).toFixed(2)}</p>
+                    <p>Total: ₹{(item.quantity * item.unit_price).toFixed(2)}</p>
                     <p>Status: <span className="capitalize font-medium text-primary">{item.fulfillment_status}</span></p>
                   </div>
                 </div>

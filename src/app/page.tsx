@@ -1,13 +1,9 @@
 import { supabase } from "@/utils/supabase/client";
-import { Card, CardContent } from "@/components/ui/Card";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Playfair_Display } from "next/font/google";
 
-// For server components we should ideally use server client, 
-// but since we are rapidly prototyping, we will fetch directly using the client 
-// or make this a client component. Let's make it a client component for easy state management if needed.
-// Wait, no, we can use the client supabase instance directly in server components if RLS allows public read.
-// In Supabase, standard client doesn't use cookies without setup, so it acts as anon.
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"] });
 
 export default async function HomePage() {
   // Fetch active products with store info
@@ -29,28 +25,28 @@ export default async function HomePage() {
       id: "1",
       title: "Essential Oversized Tee",
       price: 35.00,
-      image_urls: ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80"],
+      image_urls: ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80"],
       stores: { shop_name: "Acme Studios" }
     },
     {
       id: "2",
       title: "Classic Denim Jacket",
       price: 120.00,
-      image_urls: ["https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=500&q=80"],
+      image_urls: ["https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=800&q=80"],
       stores: { shop_name: "Indigo Wear" }
     },
     {
       id: "3",
       title: "Minimalist Sneakers",
       price: 89.99,
-      image_urls: ["https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500&q=80"],
+      image_urls: ["https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80"],
       stores: { shop_name: "Stride" }
     },
     {
       id: "4",
       title: "Heavyweight Hoodie",
       price: 65.00,
-      image_urls: ["https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80"],
+      image_urls: ["https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800&q=80"],
       stores: { shop_name: "Comfort Co" }
     }
   ];
@@ -66,81 +62,124 @@ export default async function HomePage() {
   const stores = dbStores && dbStores.length > 0 ? dbStores : dummyStores;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Hero Section */}
-      <section className="relative w-full py-20 md:py-32 bg-muted/30 border-b border-border">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tighter mb-6">
-            Discover Premium Apparel
+    <div className="flex flex-col min-h-screen bg-background">
+      {/* Split Layout Hero Section */}
+      <section className="w-full min-h-[100dvh] md:min-h-[90vh] flex flex-col-reverse lg:flex-row bg-[#E8E8E8]">
+        {/* Left Content */}
+        <div className="flex-1 flex flex-col justify-center px-6 md:px-8 lg:px-16 xl:px-24 py-6 md:py-12 lg:py-0">
+          <h1 className={`text-4xl md:text-6xl lg:text-7xl font-bold tracking-wide mb-4 md:mb-6 text-foreground leading-tight ${playfair.className}`}>
+            We don't design <span className="font-[cursive] font-light tracking-normal lowercase animate-silver-shimmer text-3d-silver">clothes</span> We design dreams.
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-[600px] mx-auto mb-8">
-            Shop exclusive collections from independent brands and designers all in one place.
+          <p className="text-base md:text-xl font-light tracking-wide max-w-xl mb-6 md:mb-10 text-muted-foreground">
+            Discover curated collections from the world's most visionary independent designers. Elevate your everyday wardrobe.
           </p>
+          <Link 
+            href="/shop" 
+            className="group flex items-center space-x-3 bg-slate-900 text-gray-300 px-6 py-3 md:px-8 md:py-4 rounded-full font-semibold text-base md:text-lg tracking-wide hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3),inset_0_4px_12px_rgba(255,255,255,0.15),inset_0_-8px_16px_rgba(0,0,0,0.6)] w-fit"
+          >
+            <span className="animate-silver-shimmer">Explore The Collection</span>
+            <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform text-gray-400" />
+          </Link>
+        </div>
+        
+        {/* Right Image */}
+        <div className="w-full flex-1 relative h-[45vh] lg:h-auto lg:min-h-full flex items-center justify-center p-4 md:p-6 lg:p-12">
+          <img 
+            src="/main-image.jpg" 
+            alt="Hero Image" 
+            className="w-auto h-auto max-w-full max-h-[45vh] lg:max-h-[85vh] object-contain rounded-2xl"
+          />
         </div>
       </section>
 
-      {/* Featured Products */}
-      <section className="py-16 container mx-auto px-4">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold tracking-tight">New Arrivals</h2>
+      {/* Editorial Product Grid (New Arrivals) */}
+      <section className="py-24 md:py-32 container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col items-center text-center mb-16 md:mb-24">
+          <h2 className="text-sm tracking-[0.2em] text-muted-foreground uppercase mb-4">Latest Additions</h2>
+          <h3 className="text-3xl md:text-5xl font-medium tracking-tight">New Arrivals</h3>
         </div>
         
         {products && products.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-16">
             {products.map((product) => (
-              <Link href={`/product/${product.id}`} key={product.id}>
-                <Card className="h-full overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer border-transparent shadow-none hover:shadow-md">
-                  <div className="aspect-[4/5] bg-muted overflow-hidden relative">
-                    {product.image_urls?.[0] ? (
-                      <img 
-                        src={product.image_urls[0]} 
-                        alt={product.title} 
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-                        Image Preview
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground mb-1">
-                      {product.stores?.shop_name || "Luxe Store"}
-                    </p>
-                    <h3 className="font-semibold text-lg line-clamp-1">{product.title}</h3>
-                    <p className="font-medium mt-1">${product.price}</p>
-                  </CardContent>
-                </Card>
+              <Link href={`/product/${product.id}`} key={product.id} className="group block">
+                <div className="aspect-[3/4] bg-secondary overflow-hidden mb-6 relative">
+                  {product.image_urls?.[0] ? (
+                    <img 
+                      src={product.image_urls[0]} 
+                      alt={product.title} 
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-medium tracking-widest uppercase">
+                      Preview
+                    </div>
+                  )}
+                  {/* Subtle hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-500" />
+                </div>
+                <div className="space-y-2 px-1 text-center">
+                  <h4 className="font-medium text-lg tracking-tight text-primary transition-colors">
+                    {product.title}
+                  </h4>
+                  <p className="text-sm text-muted-foreground tracking-wide uppercase">
+                    {product.stores?.shop_name || "AFRODER"}
+                  </p>
+                  <p className="font-medium pt-1">₹{product.price}</p>
+                </div>
               </Link>
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 text-muted-foreground border rounded-xl border-dashed">
-            No products available yet. Check back soon!
+          <div className="text-center py-20 text-muted-foreground text-lg font-light tracking-wide">
+            No collections available at the moment.
           </div>
         )}
+        
+        <div className="flex justify-center mt-20">
+          <Link 
+            href="/shop" 
+            className="border-b border-black pb-1 font-medium tracking-wide hover:text-muted-foreground hover:border-muted-foreground transition-colors"
+          >
+            View All Products
+          </Link>
+        </div>
       </section>
 
-      {/* Featured Stores */}
-      <section className="py-16 bg-muted/20 border-t border-border">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold tracking-tight">Featured Brands</h2>
+      {/* High-End Brand Showcase */}
+      <section className="py-24 md:py-32 bg-secondary/50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center text-center mb-16 md:mb-24">
+            <h2 className="text-sm tracking-[0.2em] text-muted-foreground uppercase mb-4">Curated Designers</h2>
+            <h3 className="text-3xl md:text-5xl font-medium tracking-tight">Featured Brands</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {stores?.map((store) => (
-              <Link href={`/store/${store.id}`} key={store.id}>
-                <Card className="hover:border-primary/50 transition-colors cursor-pointer text-center py-8">
-                  <CardContent>
-                    <div className="h-16 w-16 mx-auto bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mb-4">
-                      {store.shop_name.charAt(0)}
-                    </div>
-                    <h3 className="font-semibold text-lg">{store.shop_name}</h3>
-                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                      {store.bio || "Discover our premium collection."}
+              <Link href={`/store/${store.id}`} key={store.id} className="group block">
+                <div className="relative border border-border bg-background p-10 h-full min-h-[250px] flex flex-col items-center justify-center text-center transition-all duration-500 hover:shadow-xl hover:-translate-y-1 overflow-hidden">
+                  {/* Background Image Overlay */}
+                  {((store as any).profile_image || (store as any).logo_url) && (
+                    <>
+                      <div 
+                        className="absolute inset-0 bg-cover bg-center opacity-40 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-0" 
+                        style={{ backgroundImage: `url(${(store as any).profile_image || (store as any).logo_url})` }}
+                      />
+                      <div className="absolute inset-0 bg-white/40 group-hover:opacity-0 transition-opacity duration-700 z-0" />
+                    </>
+                  )}
+                  
+                  {/* Card Content */}
+                  <div className={`relative z-10 flex flex-col items-center transition-opacity duration-500 ${((store as any).profile_image || (store as any).logo_url) ? "group-hover:opacity-0" : ""}`}>
+                    <h4 className="font-medium text-2xl tracking-tight mb-4">
+                      {store.shop_name}
+                    </h4>
+                    <p className="text-muted-foreground text-sm font-light leading-relaxed max-w-[200px]">
+                      {store.bio || "Explore the signature collection."}
                     </p>
-                  </CardContent>
-                </Card>
+                    <div className="mt-8 w-12 h-[1px] bg-border" />
+                  </div>
+                </div>
               </Link>
             ))}
           </div>

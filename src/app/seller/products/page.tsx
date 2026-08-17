@@ -34,6 +34,22 @@ export default function SellerProductsPage() {
     loadProducts();
   }, [profile]);
 
+  const handleDelete = async (productId: string) => {
+    if (!confirm("Are you sure you want to delete this product?")) return;
+    
+    // Optimistic update
+    const previousProducts = [...products];
+    setProducts(products.filter((p) => p.id !== productId));
+    
+    const { error } = await supabase.from("products").delete().eq("id", productId);
+    
+    if (error) {
+      console.error("Failed to delete product:", error);
+      alert("Failed to delete product. Please try again.");
+      setProducts(previousProducts); // Revert on failure
+    }
+  };
+
   if (isLoading) {
     return <div className="flex h-40 items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   }
@@ -76,13 +92,20 @@ export default function SellerProductsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-semibold">{product.title}</h3>
-                    <p className="text-sm text-muted-foreground">${product.price}</p>
+                    <p className="text-sm text-muted-foreground">₹{product.price}</p>
                   </div>
                   <div className="flex space-x-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                    <Link href={`/seller/products/edit/${product.id}`}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                      onClick={() => handleDelete(product.id)}
+                    >
                       <Trash className="h-4 w-4" />
                     </Button>
                   </div>

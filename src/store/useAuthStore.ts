@@ -34,11 +34,45 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (session?.user) {
         set({ user: session.user });
         // Fetch profile
-        const { data: profile } = await supabase
+        let { data: profile, error: fetchError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
+          
+        if (!profile || fetchError) {
+          // Lazy initialize profile if it doesn't exist (e.g. no DB trigger)
+          const role = session.user.user_metadata?.role || 'client';
+          const full_name = session.user.user_metadata?.full_name || '';
+          
+          const { data: newProfile, error: profileInsertError } = await supabase.from('profiles').insert({
+            id: session.user.id,
+            email: session.user.email,
+            full_name,
+            role,
+          }).select().single();
+          
+          if (profileInsertError) {
+            console.error("Failed to insert profile (RLS issue?):", profileInsertError);
+            // Fallback to local state so the UI doesn't break
+            profile = { id: session.user.id, email: session.user.email, full_name, role, avatar_url: null };
+          } else {
+            profile = newProfile;
+          }
+          
+          if (role === 'seller') {
+            const { data: store } = await supabase.from('stores').select('id').eq('seller_id', session.user.id).single();
+            if (!store) {
+              const { error: storeInsertError } = await supabase.from('stores').insert({
+                seller_id: session.user.id,
+                shop_name: `${full_name || 'My'} Store`,
+              });
+              if (storeInsertError) {
+                console.error("Failed to insert store (RLS issue?):", storeInsertError);
+              }
+            }
+          }
+        }
           
         if (profile) {
           set({ profile });

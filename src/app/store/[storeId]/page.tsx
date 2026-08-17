@@ -95,7 +95,7 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
                   </div>
                   <CardContent className="p-4">
                     <h3 className="font-semibold text-lg line-clamp-1">{product.title}</h3>
-                    <p className="font-medium mt-1">${product.price}</p>
+                    <p className="font-medium mt-1">₹{product.price}</p>
                   </CardContent>
                 </Card>
               </Link>

@@ -7,7 +7,7 @@ export function Footer() {
       <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
-            <h3 className="text-xl font-bold tracking-tighter">Luxe</h3>
+            <h3 className="text-xl font-bold tracking-tighter">AFRODER</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
               Your destination for premium apparel from independent brands and designers around the world.
             </p>
@@ -40,7 +40,7 @@ export function Footer() {
               <li><Link href="/about" className="hover:text-primary transition-colors">About Us</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
               <li><Link href="/careers" className="hover:text-primary transition-colors">Careers</Link></li>
-              <li><Link href="/seller-info" className="hover:text-primary transition-colors">Sell on Luxe</Link></li>
+              <li><Link href="/seller-info" className="hover:text-primary transition-colors">Sell on AFRODER</Link></li>
             </ul>
           </div>
 
@@ -57,7 +57,7 @@ export function Footer() {
         
         <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} Luxe Marketplace. All rights reserved.
+            &copy; {new Date().getFullYear()} AFRODER Marketplace. All rights reserved.
           </p>
           <div className="flex space-x-4 mt-4 md:mt-0 text-sm text-muted-foreground">
             <span className="flex items-center"><Mail className="mr-2 h-4 w-4"/> support@luxemarketplace.com</span>

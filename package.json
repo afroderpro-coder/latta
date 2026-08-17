@@ -11,7 +11,10 @@
   "dependencies": {
     "@hookform/resolvers": "^5.8.0",
     "@radix-ui/react-slot": "^1.3.3",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "@supabase/supabase-js": "^2.112.3",
+    "@types/three": "^0.185.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.0",
@@ -21,6 +24,7 @@
     "react-dom": "19.2.8",
     "react-hook-form": "^7.85.0",
     "tailwind-merge": "^3.6.0",
+    "three": "^0.185.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
   },

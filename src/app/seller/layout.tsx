@@ -42,7 +42,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       <aside className="w-64 border-r border-border bg-card hidden md:block">
         <div className="flex h-16 items-center px-6 border-b border-border">
           <Link href="/seller/dashboard" className="text-xl font-bold tracking-tighter">
-            Luxe Seller
+            AFRODER Seller
           </Link>
         </div>
         <nav className="p-4 space-y-1">
@@ -82,7 +82,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       <main className="flex-1 flex flex-col">
         <header className="h-16 border-b border-border bg-card flex items-center px-6 md:hidden">
            <Link href="/seller/dashboard" className="text-xl font-bold tracking-tighter">
-            Luxe Seller
+            AFRODER Seller
           </Link>
         </header>
         <div className="flex-1 p-6 lg:p-8 overflow-auto">

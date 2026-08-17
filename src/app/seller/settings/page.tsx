@@ -8,12 +8,13 @@ import { supabase } from "@/utils/supabase/client";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, X } from "lucide-react";
 
 const storeSchema = z.object({
   shop_name: z.string().min(2, "Shop name must be at least 2 characters."),
   brand_name: z.string().min(2, "Brand name must be at least 2 characters."),
   bio: z.string().optional(),
+  logo_url: z.string().url("Please enter a valid URL for your logo.").or(z.literal("")).optional(),
 });
 
 type StoreFormValues = z.infer<typeof storeSchema>;
@@ -22,6 +23,8 @@ export default function StoreSettingsPage() {
   const { profile } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const {
@@ -43,14 +46,48 @@ export default function StoreSettingsPage() {
         .single();
       
       if (data) {
-        setValue("shop_name", data.shop_name);
-        setValue("brand_name", data.brand_name);
+        setValue("shop_name", data.shop_name || "");
+        setValue("brand_name", data.brand_name || "");
         setValue("bio", data.bio || "");
+        setValue("logo_url", data.logo_url || "");
+        if (data.logo_url) {
+          setLogoPreview(data.logo_url);
+        }
       }
       setIsLoading(false);
     }
     loadStore();
   }, [profile, setValue]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    
+    setIsUploading(true);
+    setMessage(null);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('store_logos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('store_logos')
+        .getPublicUrl(filePath);
+
+      setValue("logo_url", publicUrl);
+      setLogoPreview(publicUrl);
+    } catch (error: any) {
+      setMessage({ type: 'error', text: "Error uploading image: " + error.message });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const onSubmit = async (data: StoreFormValues) => {
     if (!profile) return;
@@ -109,6 +146,44 @@ export default function StoreSettingsPage() {
             <label className="text-sm font-medium">Brand Name</label>
             <Input placeholder="e.g. Acme" {...register("brand_name")} />
             {errors.brand_name && <p className="text-sm text-red-500">{errors.brand_name.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Store Logo</label>
+            <div className="flex items-center gap-6">
+              {logoPreview ? (
+                <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-border shadow-sm flex-shrink-0">
+                  <img src={logoPreview} alt="Store logo preview" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoPreview(null);
+                      setValue("logo_url", "");
+                    }}
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity hover:opacity-100"
+                  >
+                    <X className="h-6 w-6 text-white" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-full border-2 border-dashed border-border bg-muted/30">
+                  <Upload className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+              )}
+              <div className="flex-1 space-y-2">
+                <Input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleLogoUpload} 
+                  disabled={isUploading}
+                  className="cursor-pointer file:text-sm file:font-medium"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {isUploading ? "Uploading..." : "Recommended size: 256x256px. Max 2MB."}
+                </p>
+              </div>
+            </div>
+            {errors.logo_url && <p className="text-sm text-red-500">{errors.logo_url.message}</p>}
           </div>
 
           <div className="space-y-2">
