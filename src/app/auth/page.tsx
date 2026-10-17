@@ -50,7 +50,7 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ rol
           return;
         }
 
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: data.email,
           password: data.password,
           options: {
@@ -63,6 +63,12 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ rol
 
         if (signUpError) {
           setError(signUpError.message);
+          return;
+        }
+
+        // Supabase returns a user with empty identities when the email already exists
+        if (signUpData?.user && (!signUpData.user.identities || signUpData.user.identities.length === 0)) {
+          setError("This email is already registered. Please sign in instead.");
           return;
         }
 
@@ -83,15 +89,31 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ rol
 
         await initializeAuth();
         
-        // Wait briefly for profile to be populated in the store
+        // Check if the user's actual role matches the page they're on
         const profile = useAuthStore.getState().profile;
-        if (profile?.role === "seller") {
+        const actualRole = profile?.role || "client";
+
+        if (actualRole !== role) {
+          // Role mismatch — sign them out and show an error
+          await supabase.auth.signOut();
+          useAuthStore.getState().setUser(null);
+          useAuthStore.getState().setProfile(null);
+
+          if (role === "client") {
+            setError("This email is registered as a Seller. Please use the Seller login instead.");
+          } else {
+            setError("This email is registered as a Client. Please use the Client login instead.");
+          }
+          return;
+        }
+
+        if (actualRole === "seller") {
           router.push("/seller/dashboard");
         } else {
           router.push("/");
         }
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred.");
     } finally {
       setIsLoading(false);
@@ -122,7 +144,7 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ rol
           <button
             onClick={() => { setMode("signin"); setError(null); }}
             className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-              mode === "signin" ? "bg-white shadow-sm text-black" : "text-muted-foreground hover:text-black"
+              mode === "signin" ? "bg-white shadow-sm text-slate-900" : "text-muted-foreground hover:text-slate-900"
             }`}
           >
             Sign In
@@ -130,7 +152,7 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ rol
           <button
             onClick={() => { setMode("signup"); setError(null); }}
             className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-              mode === "signup" ? "bg-white shadow-sm text-black" : "text-muted-foreground hover:text-black"
+              mode === "signup" ? "bg-white shadow-sm text-slate-900" : "text-muted-foreground hover:text-slate-900"
             }`}
           >
             Sign Up

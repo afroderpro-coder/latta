@@ -9,7 +9,7 @@ import { supabase } from "@/utils/supabase/client";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Loader2, ArrowLeft, Upload, X } from "lucide-react";
+import { X, Upload, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 const productSchema = z.object({
@@ -22,7 +22,7 @@ const productSchema = z.object({
   sizes: z.array(z.string()).optional(),
 });
 
-type ProductFormValues = z.infer<typeof productSchema>;
+// type ProductFormValues = z.infer<typeof productSchema>;
 
 export default function NewProductPage() {
   const { profile } = useAuthStore();
@@ -179,7 +179,7 @@ export default function NewProductPage() {
                       setImagePreview(null);
                       setValue("imageUrl", "");
                     }}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity hover:opacity-100"
+                    className="absolute inset-0 flex items-center justify-center bg-slate-900/60 opacity-0 transition-opacity hover:opacity-100"
                   >
                     <X className="h-6 w-6 text-white" />
                   </button>

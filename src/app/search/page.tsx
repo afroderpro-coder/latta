@@ -55,7 +55,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                     <p className="text-muted-foreground text-sm font-light leading-relaxed line-clamp-3">
                       {store.bio || "Explore the signature collection."}
                     </p>
-                    <div className="mt-8 w-12 h-[1px] bg-border group-hover:bg-black transition-colors duration-500" />
+                    <div className="mt-8 w-12 h-[1px] bg-border group-hover:bg-slate-900 transition-colors duration-500" />
                   </div>
                 </Link>
               ))}
@@ -82,7 +82,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                       </div>
                     )}
                     {/* Subtle hover overlay */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-500" />
+                    <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-500" />
                   </div>
                   <div className="space-y-2 px-1 text-center">
                     <h4 className="font-medium text-lg tracking-tight text-primary transition-colors">

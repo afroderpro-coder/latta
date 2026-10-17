@@ -28,17 +28,17 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-20 mx-auto items-center justify-between px-4 md:px-8 relative">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-20 mx-auto items-center justify-between gap-4 md:gap-8 px-4 md:px-8 relative">
         {/* Left: Logo */}
-        <div className="flex items-center md:w-1/4 justify-start">
+        <div className="flex items-center flex-1 justify-start">
           <Link href="/" className="flex items-center space-x-2">
             <span className="font-bold text-2xl tracking-tighter">AFRODER</span>
           </Link>
         </div>
 
         {/* Center: Navigation */}
-        <div className="hidden md:flex w-1/2 justify-center">
+        <div className="hidden md:flex flex-none justify-center">
           <nav className="flex items-center space-x-8 text-sm font-medium text-muted-foreground">
             <Link href="/" className="hover:text-foreground transition-colors tracking-wide">Home</Link>
             <Link href="/shop" className="hover:text-foreground transition-colors tracking-wide">Shop</Link>
@@ -48,13 +48,13 @@ export function Navbar() {
         </div>
         
         {/* Right: Actions */}
-        <div className="flex items-center md:w-1/4 justify-end space-x-2 lg:space-x-4">
+        <div className="flex items-center flex-1 justify-end space-x-2 lg:space-x-4">
           <form onSubmit={handleSearch} className="hidden lg:flex relative items-center">
             <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               type="search"
               placeholder="Search stores or items..."
-              className="w-[200px] xl:w-[250px] h-9 pl-9 rounded-full bg-secondary/50 border-transparent focus-visible:bg-background text-sm"
+              className="w-[200px] xl:w-[250px] h-9 pl-9 rounded-full bg-secondary/50 border border-slate-300 focus-visible:bg-background focus-visible:border-slate-400 text-sm transition-colors"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -62,7 +62,7 @@ export function Navbar() {
 
           <Link href="/cart" className="relative">
             <Button variant="ghost" size="icon" className="relative">
-              <ShoppingBag className="h-5 w-5" />
+              <ShoppingBag className="h-5 w-5 text-black transition-all hover:scale-110" />
               {cartItemCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                   {cartItemCount}
@@ -83,7 +83,7 @@ export function Navbar() {
                     </span>
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => signOut()}>
+                <Button variant="ghost" size="icon" onClick={async () => { await signOut(); router.push('/'); }}>
                   <LogOut className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </div>
@@ -101,7 +101,7 @@ export function Navbar() {
                     blur={0}
                     textColor="#f5f5f5"
                     lineColor="#ffffff"
-                    baseColor="#171717"
+                    baseColor="#0f172a"
                     intensity={1}
                     shineSize={10}
                     shineFade={40}
@@ -165,7 +165,7 @@ export function Navbar() {
                   {profile?.role === "seller" ? "Dashboard" : "Profile"}
                 </Link>
                 <button 
-                  onClick={() => { signOut(); setIsMobileMenuOpen(false); }} 
+                  onClick={async () => { await signOut(); setIsMobileMenuOpen(false); router.push('/'); }} 
                   className="flex items-center text-lg font-medium text-destructive"
                 >
                   <LogOut className="mr-3 h-5 w-5" />

@@ -33,16 +33,16 @@ export default function SpecularButton({
   lineColor = "#ffffff",
   baseColor = "#525252",
   intensity = 1,
-  shineSize = 10,
-  shineFade = 40,
   thickness = 1,
-  speed = 0.35,
   followMouse = true,
   proximity = 250,
-  autoAnimate = false,
   className = "",
   style,
   onClick,
+  shineSize,
+  shineFade,
+  speed,
+  autoAnimate,
   ...props
 }: SpecularButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);

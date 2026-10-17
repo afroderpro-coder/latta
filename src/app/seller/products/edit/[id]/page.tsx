@@ -222,7 +222,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                       setImagePreview(null);
                       setValue("imageUrl", "");
                     }}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity hover:opacity-100"
+                    className="absolute inset-0 flex items-center justify-center bg-slate-900/60 opacity-0 transition-opacity hover:opacity-100"
                   >
                     <X className="h-6 w-6 text-white" />
                   </button>

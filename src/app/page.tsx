@@ -2,6 +2,8 @@ import { supabase } from "@/utils/supabase/client";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
+import HeroGallery from "@/components/ui/HeroGallery";
+import { AddToCartButton } from "@/components/ui/AddToCartButton";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"] });
 
@@ -65,10 +67,9 @@ export default async function HomePage() {
     <div className="flex flex-col min-h-screen bg-background">
       {/* Split Layout Hero Section */}
       <section className="w-full min-h-[100dvh] md:min-h-[90vh] flex flex-col-reverse lg:flex-row bg-[#E8E8E8]">
-        {/* Left Content */}
-        <div className="flex-1 flex flex-col justify-center px-6 md:px-8 lg:px-16 xl:px-24 py-6 md:py-12 lg:py-0">
+        <div className="flex-1 flex flex-col justify-start lg:justify-center px-6 md:px-8 lg:px-16 xl:px-24 pt-4 pb-12 md:py-12 lg:py-0">
           <h1 className={`text-4xl md:text-6xl lg:text-7xl font-bold tracking-wide mb-4 md:mb-6 text-foreground leading-tight ${playfair.className}`}>
-            We don't design <span className="font-[cursive] font-light tracking-normal lowercase animate-silver-shimmer text-3d-silver">clothes</span> We design dreams.
+            We don't design <span className="font-[cursive] font-light tracking-normal lowercase animate-silver-shimmer">clothes</span> We design dreams.
           </h1>
           <p className="text-base md:text-xl font-light tracking-wide max-w-xl mb-6 md:mb-10 text-muted-foreground">
             Discover curated collections from the world's most visionary independent designers. Elevate your everyday wardrobe.
@@ -82,14 +83,19 @@ export default async function HomePage() {
           </Link>
         </div>
         
-        {/* Right Image */}
-        <div className="w-full flex-1 relative h-[45vh] lg:h-auto lg:min-h-full flex items-center justify-center p-4 md:p-6 lg:p-12">
-          <img 
-            src="/main-image.jpg" 
-            alt="Hero Image" 
-            className="w-auto h-auto max-w-full max-h-[45vh] lg:max-h-[85vh] object-contain rounded-2xl"
-          />
-        </div>
+        {/* Right Image Layout */}
+        <HeroGallery images={[
+          "/main1-img.jpg", 
+          "/main2-img.jpg", 
+          "/main3-img.jpg", 
+          "/main4-img.jpg", 
+          "/main5-img.jpg",
+          "/main6-img.jpg",
+          "/main7-img.jpg",
+          "/main8-img.jpg",
+          "/main9-img.jpg",
+          "/main10-img.jpg"
+        ]} />
       </section>
 
       {/* Editorial Product Grid (New Arrivals) */}
@@ -103,7 +109,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-16">
             {products.map((product) => (
               <Link href={`/product/${product.id}`} key={product.id} className="group block">
-                <div className="aspect-[3/4] bg-secondary overflow-hidden mb-6 relative">
+                <div className="aspect-[3/4] bg-secondary overflow-hidden mb-6 relative border border-border/60 rounded-md">
                   {product.image_urls?.[0] ? (
                     <img 
                       src={product.image_urls[0]} 
@@ -116,7 +122,7 @@ export default async function HomePage() {
                     </div>
                   )}
                   {/* Subtle hover overlay */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-500" />
+                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-500" />
                 </div>
                 <div className="space-y-2 px-1 text-center">
                   <h4 className="font-medium text-lg tracking-tight text-primary transition-colors">
@@ -126,6 +132,10 @@ export default async function HomePage() {
                     {product.stores?.shop_name || "AFRODER"}
                   </p>
                   <p className="font-medium pt-1">₹{product.price}</p>
+                  
+                  <div className="pt-3 transition-all duration-300 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 group-hover:opacity-100 group-hover:translate-y-0">
+                    <AddToCartButton product={product as any} />
+                  </div>
                 </div>
               </Link>
             ))}
@@ -139,7 +149,7 @@ export default async function HomePage() {
         <div className="flex justify-center mt-20">
           <Link 
             href="/shop" 
-            className="border-b border-black pb-1 font-medium tracking-wide hover:text-muted-foreground hover:border-muted-foreground transition-colors"
+            className="border-b border-slate-900 pb-1 font-medium tracking-wide hover:text-muted-foreground hover:border-muted-foreground transition-colors"
           >
             View All Products
           </Link>
@@ -159,6 +169,7 @@ export default async function HomePage() {
               <Link href={`/store/${store.id}`} key={store.id} className="group block">
                 <div className="relative border border-border bg-background p-10 h-full min-h-[250px] flex flex-col items-center justify-center text-center transition-all duration-500 hover:shadow-xl hover:-translate-y-1 overflow-hidden">
                   {/* Background Image Overlay */}
+                  {/* Temporarily hidden as per user request
                   {((store as any).profile_image || (store as any).logo_url) && (
                     <>
                       <div 
@@ -168,9 +179,10 @@ export default async function HomePage() {
                       <div className="absolute inset-0 bg-white/40 group-hover:opacity-0 transition-opacity duration-700 z-0" />
                     </>
                   )}
+                  */}
                   
                   {/* Card Content */}
-                  <div className={`relative z-10 flex flex-col items-center transition-opacity duration-500 ${((store as any).profile_image || (store as any).logo_url) ? "group-hover:opacity-0" : ""}`}>
+                  <div className="relative z-10 flex flex-col items-center transition-opacity duration-500">
                     <h4 className="font-medium text-2xl tracking-tight mb-4">
                       {store.shop_name}
                     </h4>

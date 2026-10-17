@@ -27,30 +27,30 @@
 :root {
   /* Premium Off-White Background */
   --background: #fcfcfc;
-  /* Charcoal text instead of pure black for elegance */
-  --foreground: #111111;
+  /* Dark bluish text instead of pure black for elegance */
+  --foreground: #0f172a;
   
   /* Primary buttons/elements */
-  --primary: #111111;
+  --primary: #0f172a;
   --primary-foreground: #ffffff;
   
   /* Secondary/Subtle elements */
   --secondary: #f0f0f0;
-  --secondary-foreground: #111111;
+  --secondary-foreground: #0f172a;
   
   /* Muted backgrounds and text */
   --muted: #f0f0f0;
-  --muted-foreground: #666666;
+  --muted-foreground: #64748b;
   
   --accent: #f0f0f0;
-  --accent-foreground: #111111;
+  --accent-foreground: #0f172a;
   
   /* Extremely subtle borders */
-  --border: #e5e5e5;
+  --border: #e2e8f0;
   
   /* Cards blend into background */
   --card: #fcfcfc;
-  --card-foreground: #111111;
+  --card-foreground: #0f172a;
 }
 
 /* Dark mode overrides removed to force light theme globally */
@@ -107,4 +107,13 @@
     drop-shadow(2px 2px 0px #94a3b8)
     drop-shadow(3px 3px 0px #64748b)
     drop-shadow(4px 8px 12px rgba(0,0,0,0.3));
+}
+
+/* Hide scrollbar while keeping scroll functionality */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

@@ -14,7 +14,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!isLoading) {
       if (!profile) {
-        router.push("/login");
+        router.push("/auth?mode=signin");
       } else if (profile.role !== "seller") {
         router.push("/"); // redirect client to home
       }
@@ -68,7 +68,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
           <button
             onClick={async () => {
               await signOut();
-              router.push("/login");
+              router.push("/");
             }}
             className="flex w-full items-center space-x-3 px-3 py-2.5 rounded-md text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors mt-8"
           >

@@ -5,7 +5,7 @@ import { supabase } from "@/utils/supabase/client";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+// import { motion } from "framer-motion";
 
 export default function StorefrontPage({ params }: { params: Promise<{ storeId: string }> }) {
   const unwrappedParams = use(params);

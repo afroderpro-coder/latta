@@ -39,18 +39,18 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/about" className="hover:text-primary transition-colors">About Us</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
-              <li><Link href="/careers" className="hover:text-primary transition-colors">Careers</Link></li>
-              <li><Link href="/seller-info" className="hover:text-primary transition-colors">Sell on AFRODER</Link></li>
+              <li><Link href="/about" className="hover:text-primary transition-colors">Careers</Link></li>
+              <li><Link href="/auth?role=seller&mode=signup" className="hover:text-primary transition-colors">Sell on AFRODER</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-semibold mb-4">Support</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/faq" className="hover:text-primary transition-colors">FAQ</Link></li>
-              <li><Link href="/shipping" className="hover:text-primary transition-colors">Shipping & Returns</Link></li>
-              <li><Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link></li>
-              <li><Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/contact" className="hover:text-primary transition-colors">FAQ</Link></li>
+              <li><Link href="/contact" className="hover:text-primary transition-colors">Shipping & Returns</Link></li>
+              <li><Link href="/about" className="hover:text-primary transition-colors">Terms of Service</Link></li>
+              <li><Link href="/about" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
         </div>

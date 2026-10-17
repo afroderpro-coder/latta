@@ -45,8 +45,9 @@ export default function StoreSettingsPage() {
         .eq("seller_id", profile.id)
         .single();
       
+      if (error) console.error(error);
+      
       if (data) {
-        setValue("shop_name", data.shop_name || "");
         setValue("brand_name", data.brand_name || "");
         setValue("bio", data.bio || "");
         setValue("logo_url", data.logo_url || "");
@@ -160,7 +161,7 @@ export default function StoreSettingsPage() {
                       setLogoPreview(null);
                       setValue("logo_url", "");
                     }}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity hover:opacity-100"
+                    className="absolute inset-0 flex items-center justify-center bg-slate-900/60 opacity-0 transition-opacity hover:opacity-100"
                   >
                     <X className="h-6 w-6 text-white" />
                   </button>

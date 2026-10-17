@@ -83,7 +83,7 @@ export default function SellerProductsPage() {
             <Card key={product.id} className="overflow-hidden">
               <div className="aspect-video w-full bg-muted overflow-hidden">
                 {product.image_urls?.[0] ? (
-                  <img src={product.image_urls[0]} alt={product.title} className="w-full h-full object-cover" />
+                  <img src={product.image_urls[0]} alt={product.title} className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-muted-foreground">No Image</div>
                 )}
