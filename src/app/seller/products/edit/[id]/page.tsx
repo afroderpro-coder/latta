@@ -44,7 +44,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     setValue,
     formState: { errors },
   } = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema),
+    resolver: zodResolver(productSchema) as any,
   });
 
   useEffect(() => {
