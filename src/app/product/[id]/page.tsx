@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
-import { Loader2, ArrowLeft, ShoppingBag } from "lucide-react";
+import { Loader2, ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
@@ -13,6 +13,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -37,6 +38,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     return <div className="text-center py-20">Product not found.</div>;
   }
 
+  const images: string[] = Array.isArray(product.image_urls) ? product.image_urls : [];
+
   const handleAddToCart = () => {
     if (product.sizes && product.sizes.length > 0 && !selectedSize) {
       alert("Please select a size first.");
@@ -50,7 +53,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       name: product.title,
       price: product.price,
       quantity: 1,
-      imageUrl: product.image_urls?.[0] || "",
+      imageUrl: images[0] || "",
       variant: selectedSize ? { size: selectedSize, color: "" } : undefined,
     });
   };
@@ -62,20 +65,73 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       </Link>
       
       <div className="grid md:grid-cols-2 gap-12">
-        {/* Product Image */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="aspect-[4/5] bg-muted rounded-2xl overflow-hidden relative"
-        >
-          {product.image_urls?.[0] ? (
-            <img src={product.image_urls[0]} alt={product.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              No Image Available
+        {/* Product Images Gallery */}
+        <div className="flex flex-col space-y-4">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="aspect-[4/5] bg-muted rounded-2xl overflow-hidden relative border border-border group"
+          >
+            {images.length > 0 ? (
+              <img 
+                src={images[selectedImageIndex] || images[0]} 
+                alt={product.title} 
+                className="w-full h-full object-cover transition-all duration-300" 
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                No Image Available
+              </div>
+            )}
+
+            {/* Prev / Next controls for multiple images */}
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1))}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow"
+                  title="Previous image"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow"
+                  title="Next image"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+
+                {/* Counter Badge */}
+                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur text-white text-xs px-2.5 py-1 rounded-full font-medium">
+                  {selectedImageIndex + 1} / {images.length}
+                </div>
+              </>
+            )}
+          </motion.div>
+
+          {/* Thumbnails Row */}
+          {images.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+              {images.map((img: string, idx: number) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSelectedImageIndex(idx)}
+                  className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                    selectedImageIndex === idx
+                      ? "border-primary ring-2 ring-primary/20 scale-105"
+                      : "border-border opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
             </div>
           )}
-        </motion.div>
+        </div>
 
         {/* Product Details */}
         <motion.div 
