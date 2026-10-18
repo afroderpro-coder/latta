@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { parseStoreBio, serializeStoreBio, StoreReview, StoreMetadata } from "@/utils/storeMetadata";
+import { AddToCartButton } from "@/components/ui/AddToCartButton";
 
 export default function StorefrontPage({ params }: { params: Promise<{ storeId: string }> }) {
   const unwrappedParams = use(params);
@@ -378,13 +379,26 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
                           </div>
                         )}
                       </div>
-                      <CardContent className="p-3 sm:p-4">
-                        <h3 className="font-semibold text-sm sm:text-base line-clamp-1 group-hover:text-primary transition-colors">
-                          {product.title}
-                        </h3>
-                        <p className="font-bold text-sm sm:text-base mt-1 text-foreground">
-                          ₹{product.price}
-                        </p>
+                      <CardContent className="p-3 sm:p-4 flex flex-col justify-between flex-1">
+                        <div>
+                          <h3 className="font-semibold text-sm sm:text-base line-clamp-1 group-hover:text-primary transition-colors">
+                            {product.title}
+                          </h3>
+                          <p className="font-bold text-sm sm:text-base mt-1 text-foreground">
+                            ₹{product.price}
+                          </p>
+                        </div>
+                        <div className="mt-3">
+                          <AddToCartButton
+                            product={{
+                              id: product.id,
+                              title: product.title,
+                              price: product.price,
+                              image_urls: product.image_urls,
+                              store_id: store.id,
+                            }}
+                          />
+                        </div>
                       </CardContent>
                     </Card>
                   </Link>

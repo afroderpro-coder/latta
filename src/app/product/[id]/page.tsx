@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
-import { Loader2, ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
@@ -14,6 +14,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isAdded, setIsAdded] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -56,6 +57,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       imageUrl: images[0] || "",
       variant: selectedSize ? { size: selectedSize, color: "" } : undefined,
     });
+
+    setIsAdded(true);
+    setTimeout(() => {
+      setIsAdded(false);
+    }, 1800);
   };
 
   return (
@@ -171,8 +177,24 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           )}
           
           <div className="mt-auto pt-8 border-t border-border">
-            <Button size="lg" className="w-full h-14 text-lg" onClick={handleAddToCart}>
-              <ShoppingBag className="mr-2 h-5 w-5" /> Add to Cart
+            <Button
+              size="lg"
+              className={`w-full h-14 text-lg font-bold transition-all duration-200 ${
+                isAdded
+                  ? "bg-[#e6f7ec] hover:bg-[#d4f3dd] text-[#14532d] border-2 border-[#16a34a]"
+                  : ""
+              }`}
+              onClick={handleAddToCart}
+            >
+              {isAdded ? (
+                <>
+                  <Check className="mr-2 h-6 w-6 text-[#16a34a]" /> Added to Cart!
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="mr-2 h-5 w-5" /> Add to Cart
+                </>
+              )}
             </Button>
           </div>
         </motion.div>
