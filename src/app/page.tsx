@@ -7,6 +7,9 @@ import { AddToCartButton } from "@/components/ui/AddToCartButton";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"] });
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function HomePage() {
   // Fetch active products with store info
   const { data: dbProducts } = await supabase
