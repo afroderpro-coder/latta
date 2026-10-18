@@ -83,8 +83,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           animate={{ opacity: 1, x: 0 }}
           className="flex flex-col"
         >
-          <Link href={`/store/${product.stores?.id}`} className="text-sm font-medium text-primary hover:underline mb-2">
-            {product.stores?.shop_name}
+          <Link href={`/store/${product.stores?.id || product.store_id}`} className="text-sm font-medium text-primary hover:underline mb-2">
+            {product.stores?.shop_name || "Visit Store"}
           </Link>
           <h1 className="text-4xl font-bold tracking-tight mb-4">{product.title}</h1>
           <p className="text-2xl font-medium mb-6">₹{product.price}</p>

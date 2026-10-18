@@ -158,9 +158,18 @@ export default async function ShopPage() {
                     <div className="flex flex-col flex-1 p-2.5 sm:p-3 gap-2">
 
                       {/* Store name */}
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate leading-none">
-                        {product.stores?.shop_name || "AFRODER Store"}
-                      </p>
+                      {product.store_id || product.stores?.id ? (
+                        <Link 
+                          href={`/store/${product.store_id || product.stores?.id}`}
+                          className="hover:underline text-[10px] sm:text-xs text-muted-foreground truncate leading-none block font-medium"
+                        >
+                          {product.stores?.shop_name || "Visit Store"}
+                        </Link>
+                      ) : (
+                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate leading-none">
+                          {product.stores?.shop_name || "AFRODER Store"}
+                        </p>
+                      )}
 
                       {/* Product title */}
                       <Link href={`/product/${product.id}`}>
