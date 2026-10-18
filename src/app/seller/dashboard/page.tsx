@@ -7,6 +7,8 @@ import { supabase } from "@/utils/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Package, ShoppingBag, DollarSign, Settings } from "lucide-react";
 
+import { parseStoreBio } from "@/utils/storeMetadata";
+
 export default function SellerDashboardPage() {
   const { profile } = useAuthStore();
   const [stats, setStats] = useState({
@@ -19,7 +21,7 @@ export default function SellerDashboardPage() {
     async function loadStats() {
       if (!profile) return;
       
-      const { data: store } = await supabase.from("stores").select("id").eq("seller_id", profile.id).single();
+      const { data: store } = await supabase.from("stores").select("id, bio").eq("seller_id", profile.id).single();
       if (!store) return;
 
       const { count: productCount } = await supabase
@@ -27,16 +29,30 @@ export default function SellerDashboardPage() {
         .select("*", { count: 'exact', head: true })
         .eq("store_id", store.id);
 
-      const { data: orderItems } = await supabase
-        .from("order_items")
-        .select("quantity, unit_price")
-        .eq("store_id", store.id);
+      // Load orders from store metadata
+      const meta = parseStoreBio(store.bio);
+      const orders = meta.orders || [];
 
       let revenue = 0;
-      const orderCount = orderItems?.length || 0;
-      
-      if (orderItems) {
-        revenue = orderItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+      let orderCount = orders.length;
+
+      if (orders.length > 0) {
+        revenue = orders.reduce((acc, order) => acc + (order.total_amount || 0), 0);
+      } else {
+        // Fallback check order_items table if it ever exists
+        try {
+          const { data: orderItems } = await supabase
+            .from("order_items")
+            .select("quantity, unit_price")
+            .eq("store_id", store.id);
+
+          if (orderItems && orderItems.length > 0) {
+            revenue = orderItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+            orderCount = orderItems.length;
+          }
+        } catch {
+          // ignore
+        }
       }
 
       setStats({

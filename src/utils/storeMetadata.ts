@@ -6,6 +6,27 @@ export interface StoreReview {
   created_at: string;
 }
 
+export interface StoreOrderItem {
+  product_id: string;
+  product_title: string;
+  size?: string;
+  quantity: number;
+  price: number;
+  image_url?: string;
+}
+
+export interface StoreOrder {
+  id: string;
+  created_at: string;
+  customer_name: string;
+  customer_phone: string;
+  delivery_address: string;
+  customer_notes?: string;
+  items: StoreOrderItem[];
+  total_amount: number;
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+}
+
 export interface StoreMetadata {
   bio: string;
   location?: string;
@@ -13,6 +34,7 @@ export interface StoreMetadata {
   whatsapp?: string; // phone number or chat/group link
   shop_photo_url?: string;
   reviews?: StoreReview[];
+  orders?: StoreOrder[];
 }
 
 export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata {
@@ -24,6 +46,7 @@ export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata 
       whatsapp: "",
       shop_photo_url: "",
       reviews: [],
+      orders: [],
     };
   }
 
@@ -38,6 +61,7 @@ export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata 
         whatsapp: parsed.whatsapp || "",
         shop_photo_url: parsed.shop_photo_url || "",
         reviews: Array.isArray(parsed.reviews) ? parsed.reviews : [],
+        orders: Array.isArray(parsed.orders) ? parsed.orders : [],
       };
     }
   } catch {
@@ -51,6 +75,7 @@ export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata 
     whatsapp: "",
     shop_photo_url: "",
     reviews: [],
+    orders: [],
   };
 }
 
@@ -62,5 +87,6 @@ export function serializeStoreBio(meta: Partial<StoreMetadata>): string {
     whatsapp: meta.whatsapp || "",
     shop_photo_url: meta.shop_photo_url || "",
     reviews: Array.isArray(meta.reviews) ? meta.reviews : [],
+    orders: Array.isArray(meta.orders) ? meta.orders : [],
   });
 }

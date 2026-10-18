@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { parseStoreBio, serializeStoreBio, StoreOrder } from "@/utils/storeMetadata";
 
 const WHATSAPP_ORDER_NUMBER = "919671016500";
 
@@ -98,32 +99,104 @@ export default function CartPage() {
     setIsCheckingOut(true);
 
     try {
-      // 1. Fetch store names for the items in cart
-      const storeMap: Record<string, string> = {};
+      // Base URL for generating exact product and store links
+      const baseUrl = typeof window !== "undefined" && window.location.origin
+        ? window.location.origin
+        : "https://bucolic-liger-c920b6.netlify.app";
+
+      // 1. Fetch store records for the items in cart
+      const storeMap: Record<string, { shop_name: string; bio?: string }> = {};
       const storeIds = Array.from(new Set(selectedItems.map((i) => i.storeId).filter(Boolean)));
       if (storeIds.length > 0) {
         try {
           const { data: stores } = await supabase
             .from("stores")
-            .select("id, shop_name")
+            .select("id, shop_name, bio")
             .in("id", storeIds);
           stores?.forEach((s) => {
-            storeMap[s.id] = s.shop_name;
+            storeMap[s.id] = { shop_name: s.shop_name, bio: s.bio };
           });
         } catch (err) {
           console.error("Could not fetch store names:", err);
         }
       }
 
-      // 2. Format Items list
+      // 2. Persist order into each seller's store metadata so it shows in their Orders dashboard
+      const itemsByStore: Record<string, typeof selectedItems> = {};
+      selectedItems.forEach((item) => {
+        const sId = item.storeId || "unknown";
+        if (!itemsByStore[sId]) itemsByStore[sId] = [];
+        itemsByStore[sId].push(item);
+      });
+
+      const orderRef = "ORD-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      for (const [sId, storeItems] of Object.entries(itemsByStore)) {
+        if (sId && sId !== "unknown") {
+          try {
+            const currentStore = storeMap[sId];
+            if (currentStore) {
+              const storeMeta = parseStoreBio(currentStore.bio);
+              const storeTotal = storeItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+              const storeOrder: StoreOrder = {
+                id: orderRef,
+                created_at: new Date().toISOString(),
+                customer_name: customerName.trim() || profile?.full_name || "Guest Customer",
+                customer_phone: customerPhone.trim() || "Not provided",
+                delivery_address: deliveryAddress.trim() || "Not provided",
+                customer_notes: customerNotes.trim() || "",
+                items: storeItems.map((i) => ({
+                  product_id: i.productId,
+                  product_title: i.name,
+                  size: i.variant?.size,
+                  quantity: i.quantity,
+                  price: i.price,
+                  image_url: i.imageUrl,
+                })),
+                total_amount: storeTotal,
+                status: "pending",
+              };
+
+              const updatedOrders = [storeOrder, ...(storeMeta.orders || [])];
+              const updatedBio = serializeStoreBio({
+                ...storeMeta,
+                orders: updatedOrders,
+              });
+
+              await supabase
+                .from("stores")
+                .update({ bio: updatedBio })
+                .eq("id", sId);
+            }
+          } catch (persistErr) {
+            console.error("Error saving order to store metadata:", persistErr);
+          }
+        }
+      }
+
+      // 3. Format Items list with clickable product and store links for WhatsApp
       const itemsText = selectedItems.map((item, index) => {
-        const storeName = storeMap[item.storeId] || "AFRODER Partner Store";
+        const storeInfo = storeMap[item.storeId];
+        const storeName = storeInfo?.shop_name || "AFRODER Partner Store";
         const sizeText = item.variant?.size ? ` (Size: ${item.variant.size})` : "";
         const itemSubtotal = (item.price * item.quantity).toFixed(2);
-        return `${index + 1}. *${item.name}*${sizeText}\n   • Store: ${storeName}\n   • Qty: ${item.quantity} × ₹${item.price.toFixed(2)} = ₹${itemSubtotal}`;
+        const productLink = `${baseUrl}/product/${item.productId}`;
+        const storeLink = item.storeId ? `${baseUrl}/store/${item.storeId}` : null;
+
+        let itemDetails = `${index + 1}. *${item.name}*${sizeText}\n` +
+          `   • Qty: ${item.quantity} × ₹${item.price.toFixed(2)} = ₹${itemSubtotal}\n` +
+          `   • Store: ${storeName}\n` +
+          `   🔗 Product: ${productLink}`;
+
+        if (storeLink) {
+          itemDetails += `\n   🏬 Store: ${storeLink}`;
+        }
+
+        return itemDetails;
       }).join("\n\n");
 
-      // 3. Format complete message
+      // 4. Format complete message
       const customerInfo = [
         `• Name: ${customerName.trim() || profile?.full_name || "Guest Customer"}`,
         customerPhone.trim() ? `• Phone: ${customerPhone.trim()}` : null,
@@ -133,6 +206,7 @@ export default function CartPage() {
 
       const message = `🛍️ *NEW ORDER - AFRODER APPAREL*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🧾 Order Ref: #${orderRef}\n\n` +
         `👤 *CUSTOMER DETAILS:*\n${customerInfo}\n\n` +
         `📦 *PRODUCTS ORDERED:*\n${itemsText}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -140,16 +214,16 @@ export default function CartPage() {
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `📍 Please confirm my order availability and dispatch instructions!`;
 
-      // 4. Build WhatsApp URL
+      // 5. Build WhatsApp URL
       const whatsappUrl = `https://wa.me/${WHATSAPP_ORDER_NUMBER}?text=${encodeURIComponent(message)}`;
 
-      // 5. Remove checked-out items from cart
+      // 6. Remove checked-out items from cart
       selectedIds.forEach((id) => removeItem(id));
       setSelectedIds(new Set());
       setShowCheckoutModal(false);
       setOrderPlaced(true);
 
-      // 6. Open WhatsApp in new tab/window
+      // 7. Open WhatsApp in new tab/window
       window.open(whatsappUrl, "_blank");
 
     } catch (err: any) {
