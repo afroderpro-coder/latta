@@ -16,7 +16,8 @@ import {
   ShoppingBag, 
   Send,
   CheckCircle2,
-  Calendar
+  Calendar,
+  ExternalLink
 } from "lucide-react";
 import Link from "next/link";
 import { parseStoreBio, serializeStoreBio, StoreReview, StoreMetadata } from "@/utils/storeMetadata";
@@ -166,6 +167,17 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
   // Format Phone link
   const phoneHref = meta.phone ? `tel:${meta.phone.replace(/[^0-9+]/g, "")}` : "";
 
+  // Format Google Maps link
+  let mapHref = "";
+  if (meta.location) {
+    const loc = meta.location.trim();
+    if (loc.startsWith("http://") || loc.startsWith("https://")) {
+      mapHref = loc;
+    } else {
+      mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* ── Top Hero Banner ── */}
@@ -263,6 +275,19 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
                   <span>Call Store</span>
                 </a>
               )}
+
+              {mapHref && (
+                <a
+                  href={mapHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border px-5 py-2.5 rounded-full font-medium text-sm transition-transform active:scale-95 shadow-sm"
+                  title="Open location in Google Maps"
+                >
+                  <MapPin className="h-4 w-4 text-rose-500" />
+                  <span>View Map</span>
+                </a>
+              )}
             </div>
           </div>
 
@@ -278,13 +303,29 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
             </div>
 
             {meta.location && (
-              <div className="space-y-1.5 bg-muted/30 p-4 rounded-xl border border-border/60">
-                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 text-primary" />
-                  <span>Store Location</span>
+              <a
+                href={mapHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block space-y-2 bg-muted/40 hover:bg-muted/70 p-4 rounded-xl border border-border/80 hover:border-primary/50 transition-all shadow-sm hover:shadow cursor-pointer"
+                title="Click to view on Google Maps"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-primary transition-colors">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    <span>Store Location</span>
+                  </div>
+                  <span className="text-[11px] font-medium text-primary flex items-center gap-1 group-hover:underline">
+                    Open Map <ExternalLink className="h-3 w-3" />
+                  </span>
                 </div>
-                <p className="text-sm font-medium text-foreground">{meta.location}</p>
-              </div>
+                <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                  {meta.location}
+                </p>
+                <p className="text-[11px] text-muted-foreground pt-0.5">
+                  📍 Click to navigate directly via Google Maps
+                </p>
+              </a>
             )}
           </div>
         </div>

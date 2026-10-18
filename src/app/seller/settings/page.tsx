@@ -318,7 +318,7 @@ export default function StoreSettingsPage() {
               onChange={(e) => setLocation(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Clients will see this address on your public profile page.
+              Enter your address, city, or paste a Google Maps link. Customers will be able to click it to open Google Maps directly.
             </p>
           </div>
 
