@@ -61,19 +61,6 @@ export const useAuthStore = create<AuthState>((set) => ({
           } else {
             profile = newProfile;
           }
-          
-          if (role === 'seller') {
-            const { data: store } = await supabase.from('stores').select('id').eq('seller_id', session.user.id).single();
-            if (!store) {
-              const { error: storeInsertError } = await supabase.from('stores').insert({
-                seller_id: session.user.id,
-                shop_name: `${full_name || 'My'} Store`,
-              });
-              if (storeInsertError) {
-                console.warn("Failed to insert store (RLS issue?):", storeInsertError);
-              }
-            }
-          }
         }
           
         if (profile) {

@@ -53,7 +53,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                       {store.shop_name}
                     </h4>
                     <p className="text-muted-foreground text-sm font-light leading-relaxed line-clamp-3">
-                      {store.bio || "Explore the signature collection."}
+                      {store.bio && !store.bio.trim().startsWith("{") && !store.bio.trim().startsWith("[")
+                        ? store.bio
+                        : "Explore the signature collection."}
                     </p>
                     <div className="mt-8 w-12 h-[1px] bg-border group-hover:bg-slate-900 transition-colors duration-500" />
                   </div>

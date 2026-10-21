@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AFRODER - Premium Multi-Vendor Marketplace",
   description: "Discover premium apparel from independent brands.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 import { AuthProvider } from "@/components/providers/AuthProvider";

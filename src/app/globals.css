@@ -20,6 +20,9 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
@@ -51,6 +54,10 @@
   /* Cards blend into background */
   --card: #fcfcfc;
   --card-foreground: #0f172a;
+
+  /* Destructive / Danger */
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 }
 
 /* Dark mode overrides removed to force light theme globally */
@@ -117,3 +124,48 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+@keyframes loader-line {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-loader-line {
+  animation: loader-line 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(0.985);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(-1deg);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 5s ease-in-out infinite;
+}
+

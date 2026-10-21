@@ -2,7 +2,7 @@ import { supabase } from "@/utils/supabase/client";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
-import HeroGallery from "@/components/ui/HeroGallery";
+import HeroVisualSlider from "@/components/ui/HeroVisualSlider";
 import { AddToCartButton } from "@/components/ui/AddToCartButton";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"] });
@@ -86,19 +86,8 @@ export default async function HomePage() {
           </Link>
         </div>
         
-        {/* Right Image Layout */}
-        <HeroGallery images={[
-          "/main1-img.jpg", 
-          "/main2-img.jpg", 
-          "/main3-img.jpg", 
-          "/main4-img.jpg", 
-          "/main5-img.jpg",
-          "/main6-img.jpg",
-          "/main7-img.jpg",
-          "/main8-img.jpg",
-          "/main9-img.jpg",
-          "/main10-img.jpg"
-        ]} />
+        {/* Right Hero Visual (Single Hero Image) */}
+        <HeroVisualSlider images={["/hero-dancer-2.png"]} />
       </section>
 
       {/* Editorial Product Grid (New Arrivals) */}
@@ -190,7 +179,9 @@ export default async function HomePage() {
                       {store.shop_name}
                     </h4>
                     <p className="text-muted-foreground text-sm font-light leading-relaxed max-w-[200px]">
-                      {store.bio || "Explore the signature collection."}
+                      {store.bio && !store.bio.trim().startsWith("{") && !store.bio.trim().startsWith("[")
+                        ? store.bio
+                        : "Explore the signature collection."}
                     </p>
                     <div className="mt-8 w-12 h-[1px] bg-border" />
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCartStore } from "@/store/useCartStore";
 import { ShoppingBag, User, LogOut, Search, Menu, X } from "lucide-react";
@@ -32,7 +33,15 @@ export function Navbar() {
       <div className="container flex h-20 mx-auto items-center justify-between gap-4 md:gap-8 px-4 md:px-8 relative">
         {/* Left: Logo */}
         <div className="flex items-center flex-1 justify-start">
-          <Link href="/" className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center space-x-2.5">
+            <Image 
+              src="/logo-emblem.png" 
+              alt="AFRODER" 
+              width={46} 
+              height={22} 
+              className="object-contain" 
+              priority
+            />
             <span className="font-bold text-2xl tracking-tighter">AFRODER</span>
           </Link>
         </div>
@@ -92,7 +101,7 @@ export function Navbar() {
                 <Link href="/auth?role=client&mode=signin">
                   <Button variant="ghost" size="sm">Login</Button>
                 </Link>
-                <Link href="/auth?role=seller&mode=signup">
+                <Link href="/auth?role=seller">
                   <SpecularButton
                     size="sm"
                     radius={8}
@@ -177,8 +186,8 @@ export function Navbar() {
                 <Link href="/auth?role=client&mode=signin" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button className="w-full h-12 text-lg rounded-full" variant="outline">Login</Button>
                 </Link>
-                <Link href="/auth?role=seller&mode=signup" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full h-12 text-lg rounded-full">Become a Seller</Button>
+                <Link href="/auth?role=seller" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button className="w-full h-12 text-lg rounded-full">Seller Portal</Button>
                 </Link>
               </div>
             )}

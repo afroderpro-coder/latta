@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuthStore } from "@/store/useAuthStore";
 import { 
   Loader2, 
@@ -17,6 +18,8 @@ import {
   ChevronRight
 } from "lucide-react";
 import { supabase } from "@/utils/supabase/client";
+import { parseStoreBio } from "@/utils/storeMetadata";
+import { BrandLoader } from "@/components/ui/BrandLoader";
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
   const { profile, isLoading, signOut } = useAuthStore();
@@ -24,42 +27,60 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [isVerifyingApproval, setIsVerifyingApproval] = useState(true);
 
   useEffect(() => {
-    if (!isLoading) {
+    async function verifySeller() {
+      if (isLoading) return;
+
       if (!profile) {
-        router.push("/auth?mode=signin");
-      } else if (profile.role !== "seller") {
-        router.push("/");
+        router.push("/auth?role=seller&mode=signin");
+        return;
       }
-    }
-  }, [isLoading, profile, router]);
 
-  // Fetch store ID for direct "View Store" links
-  useEffect(() => {
-    async function fetchStoreId() {
-      if (!profile) return;
-      const { data } = await supabase
+      if (profile.role !== "seller") {
+        router.push("/");
+        return;
+      }
+
+      // Check store approval status
+      const { data: storeData } = await supabase
         .from("stores")
-        .select("id")
+        .select("id, bio")
         .eq("seller_id", profile.id)
         .single();
-      if (data) setStoreId(data.id);
+
+      if (storeData) {
+        const meta = parseStoreBio(storeData.bio);
+
+        if (meta.approval_status === "pending") {
+          await signOut();
+          router.push("/auth?role=seller&mode=signin&status=pending");
+          return;
+        }
+
+        if (meta.approval_status === "rejected") {
+          await signOut();
+          router.push("/auth?role=seller&mode=signin&status=rejected");
+          return;
+        }
+
+        setStoreId(storeData.id);
+      }
+
+      setIsVerifyingApproval(false);
     }
-    fetchStoreId();
-  }, [profile]);
+
+    verifySeller();
+  }, [isLoading, profile, router, signOut]);
 
   // Close mobile drawer on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  if (isLoading || !profile || profile.role !== "seller") {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  if (isLoading || isVerifyingApproval || !profile || profile.role !== "seller") {
+    return <BrandLoader fullScreen />;
   }
 
   const navItems = [
@@ -74,8 +95,9 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       {/* ── Desktop Sidebar ── */}
       <aside className="w-64 border-r border-border bg-card hidden md:flex md:flex-col shrink-0">
         <div className="flex h-16 items-center px-6 border-b border-border justify-between">
-          <Link href="/seller/dashboard" className="text-xl font-bold tracking-tighter">
-            AFRODER Seller
+          <Link href="/seller/dashboard" className="text-xl font-bold tracking-tighter flex items-center space-x-2">
+            <Image src="/logo-emblem.png" alt="AFRODER" width={36} height={18} className="object-contain" />
+            <span>AFRODER Seller</span>
           </Link>
         </div>
 
@@ -137,8 +159,9 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
             >
               {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
-            <Link href="/seller/dashboard" className="text-lg font-bold tracking-tight">
-              AFRODER Seller
+            <Link href="/seller/dashboard" className="text-lg font-bold tracking-tight flex items-center space-x-2">
+              <Image src="/logo-emblem.png" alt="AFRODER" width={32} height={16} className="object-contain" />
+              <span>AFRODER Seller</span>
             </Link>
           </div>
 
@@ -169,7 +192,10 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         >
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-border pb-4">
-              <span className="text-xl font-bold tracking-tight">AFRODER Seller</span>
+              <div className="flex items-center space-x-2">
+                <Image src="/logo-emblem.png" alt="AFRODER" width={36} height={18} className="object-contain" />
+                <span className="text-xl font-bold tracking-tight">AFRODER Seller</span>
+              </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-1 rounded-md text-muted-foreground hover:text-foreground"

@@ -9,9 +9,10 @@ import { supabase } from "@/utils/supabase/client";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Loader2, ArrowLeft, Upload, X, Star, Plus } from "lucide-react";
+import { Loader2, ArrowLeft, Upload, X, Star, Plus, AlertCircle, ArrowRight, Store } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
+import { serializeStoreBio } from "@/utils/storeMetadata";
 
 const productSchema = z.object({
   title: z.string().min(2, "Title is required."),
@@ -36,10 +37,15 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const [isUploading, setIsUploading] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [isDraftReady, setIsDraftReady] = useState(false);
+
+  const DRAFT_KEY = `afroder_draft_edit_product_${productId}`;
 
   const {
     register,
     handleSubmit,
+    watch,
     reset,
     formState: { errors },
   } = useForm<ProductFormValues>({
@@ -57,29 +63,82 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
         if (error) throw error;
         if (data) {
+          // Check for unsaved draft
+          let currentDraft: any = null;
+          try {
+            const savedDraft = localStorage.getItem(DRAFT_KEY);
+            if (savedDraft) {
+              currentDraft = JSON.parse(savedDraft);
+            }
+          } catch (e) {
+            console.warn("Failed to parse edit draft:", e);
+          }
+
           reset({
-            title: data.title,
-            description: data.description || "",
-            price: data.price,
-            category: data.category || "",
-            brand: data.brand || "",
+            title: currentDraft?.title ?? data.title,
+            description: currentDraft?.description ?? (data.description || ""),
+            price: currentDraft?.price ?? data.price,
+            category: currentDraft?.category ?? (data.category || ""),
+            brand: currentDraft?.brand ?? (data.brand || ""),
           });
-          if (Array.isArray(data.image_urls)) {
+
+          if (currentDraft && Array.isArray(currentDraft.imageUrls)) {
+            setImageUrls(currentDraft.imageUrls);
+          } else if (Array.isArray(data.image_urls)) {
             setImageUrls(data.image_urls);
           }
-          if (Array.isArray(data.sizes)) {
+
+          if (currentDraft && Array.isArray(currentDraft.sizes)) {
+            setSelectedSizes(currentDraft.sizes);
+          } else if (Array.isArray(data.sizes)) {
             setSelectedSizes(data.sizes);
           }
+
+          if (currentDraft) setHasDraft(true);
         }
       } catch (err) {
         console.error(err);
         setError("Failed to load product details.");
       } finally {
         setIsLoading(false);
+        setIsDraftReady(true);
       }
     }
     loadProduct();
-  }, [productId, reset]);
+  }, [productId, reset, DRAFT_KEY]);
+
+  // Auto-save edits to localStorage
+  const watchedValues = watch();
+
+  useEffect(() => {
+    if (!isDraftReady || isLoading) return;
+    try {
+      const draftData = {
+        title: watchedValues.title || "",
+        description: watchedValues.description || "",
+        price: watchedValues.price || "",
+        category: watchedValues.category || "",
+        brand: watchedValues.brand || "",
+        sizes: selectedSizes,
+        imageUrls: imageUrls,
+      };
+
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
+      setHasDraft(true);
+    } catch (e) {
+      console.warn("Failed to auto-save edit draft:", e);
+    }
+  }, [watchedValues, selectedSizes, imageUrls, isDraftReady, isLoading, DRAFT_KEY]);
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      setHasDraft(false);
+      window.location.reload();
+    } catch (e) {
+      console.warn("Could not discard edit draft:", e);
+    }
+  };
 
   const handleMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -148,11 +207,12 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     setIsSaving(true);
     setError(null);
     try {
-      const { data: store } = await supabase
+      let { data: store } = await supabase
         .from("stores")
         .select("id")
         .eq("seller_id", profile.id)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (!store) {
         throw new Error("You must set up your store profile first.");
@@ -174,6 +234,13 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
       if (updateError) throw updateError;
 
+      // Clear draft on successful save
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch (e) {
+        console.warn("Could not remove edit draft:", e);
+      }
+
       router.push("/seller/products");
     } catch (err: any) {
       setError(err.message || "Failed to update product.");
@@ -192,16 +259,33 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="max-w-3xl space-y-6 pb-12">
-      <div className="flex items-center space-x-4">
-        <Link href="/seller/products">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Edit Product</h1>
-          <p className="text-muted-foreground">Update your product details and photos.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-4">
+          <Link href="/seller/products">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Product</h1>
+            <p className="text-muted-foreground text-sm">Update your product details and photos.</p>
+          </div>
         </div>
+
+        {hasDraft && (
+          <div className="flex items-center gap-2 self-start sm:self-auto bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full text-xs">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-emerald-700 dark:text-emerald-300 font-medium">Changes auto-saved</span>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="text-muted-foreground hover:text-destructive font-medium ml-1 transition-colors underline"
+              title="Discard unsaved edits and reload database values"
+            >
+              Reset
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -349,8 +433,21 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           </div>
 
           {error && (
-            <div className="p-3 rounded-md text-sm font-medium bg-red-500/10 text-red-600">
-              {error}
+            <div className="p-4 rounded-xl text-sm font-medium bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 shrink-0 text-red-600 dark:text-red-400" />
+                <span>{error}</span>
+              </div>
+              {(error.toLowerCase().includes("store profile") || error.toLowerCase().includes("set up")) && (
+                <Link
+                  href="/seller/settings"
+                  className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shrink-0 shadow-xs transition-colors"
+                >
+                  <Store className="w-3.5 h-3.5" />
+                  <span>Open Store Profile</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              )}
             </div>
           )}
 

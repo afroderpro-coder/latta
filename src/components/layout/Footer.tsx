@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Mail, Globe, MessageCircle, Share2 } from "lucide-react";
 
 export function Footer() {
@@ -7,7 +8,10 @@ export function Footer() {
       <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
-            <h3 className="text-xl font-bold tracking-tighter">AFRODER</h3>
+            <div className="flex items-center space-x-2.5 mb-2">
+              <Image src="/logo-emblem.png" alt="AFRODER" width={44} height={20} className="object-contain" />
+              <h3 className="text-xl font-bold tracking-tighter">AFRODER</h3>
+            </div>
             <p className="text-sm text-muted-foreground max-w-xs">
               Your destination for premium apparel from independent brands and designers around the world.
             </p>
@@ -40,7 +44,7 @@ export function Footer() {
               <li><Link href="/about" className="hover:text-primary transition-colors">About Us</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
               <li><Link href="/about" className="hover:text-primary transition-colors">Careers</Link></li>
-              <li><Link href="/auth?role=seller&mode=signup" className="hover:text-primary transition-colors">Sell on AFRODER</Link></li>
+              <li><Link href="/auth?role=seller" className="hover:text-primary transition-colors">Sell on AFRODER</Link></li>
             </ul>
           </div>
 
@@ -50,7 +54,7 @@ export function Footer() {
               <li><Link href="/contact" className="hover:text-primary transition-colors">FAQ</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors">Shipping & Returns</Link></li>
               <li><Link href="/about" className="hover:text-primary transition-colors">Terms of Service</Link></li>
-              <li><Link href="/about" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/admin" className="hover:text-primary transition-colors opacity-75">Web Controller</Link></li>
             </ul>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
-import { User, Mail, Settings, ShoppingBag, LogOut } from "lucide-react";
+import { User, Mail, Settings, ShoppingBag, LogOut, Phone } from "lucide-react";
 
 export default function ProfilePage() {
   const { profile, user, isLoading, signOut } = useAuthStore();
@@ -61,15 +61,39 @@ export default function ProfilePage() {
                 <p className="text-muted-foreground">{profile?.full_name || "Not provided"}</p>
               </div>
             </div>
+
+            {/* Phone Number */}
             <div className="flex items-center space-x-3 text-sm">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Mail className="h-5 w-5" />
+                <Phone className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-medium">Email Address</p>
-                <p className="text-muted-foreground">{user.email}</p>
+                <p className="font-medium">Phone Number</p>
+                <p className="text-muted-foreground">
+                  {user.user_metadata?.contact_number ||
+                    user.user_metadata?.phone ||
+                    (user.email?.endsWith("@phone.afroder.com")
+                      ? user.email.replace("@phone.afroder.com", "")
+                      : "Not linked")}
+                </p>
               </div>
             </div>
+
+            {/* Email (Optional / Real) */}
+            {(!user.email?.endsWith("@phone.afroder.com") || user.user_metadata?.optional_email) && (
+              <div className="flex items-center space-x-3 text-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Mail className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium">Email Address (Optional)</p>
+                  <p className="text-muted-foreground">
+                    {user.user_metadata?.optional_email || user.email}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center space-x-3 text-sm">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Settings className="h-5 w-5" />
