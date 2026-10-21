@@ -17,10 +17,10 @@ export const metadata: Metadata = {
   description: "Discover premium apparel from independent brands.",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon.ico?v=2", sizes: "any" },
+      { url: "/icon.png?v=2", type: "image/png", sizes: "192x192" },
     ],
-    apple: "/apple-icon.png",
+    apple: "/apple-icon.png?v=2",
   },
 };
 
