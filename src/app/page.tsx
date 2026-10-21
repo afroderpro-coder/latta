@@ -5,6 +5,9 @@ import { Playfair_Display } from "next/font/google";
 import HeroVisualSlider from "@/components/ui/HeroVisualSlider";
 import { AddToCartButton } from "@/components/ui/AddToCartButton";
 
+import { parseStoreBio } from "@/utils/storeMetadata";
+import staticDeletedStores from "@/data/deleted_stores.json";
+
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"] });
 
 export const dynamic = "force-dynamic";
@@ -19,11 +22,18 @@ export default async function HomePage() {
     .order("created_at", { ascending: false })
     .limit(12);
 
-  const { data: dbStores } = await supabase
+  const { data: rawDbStores } = await supabase
     .from("stores")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(4);
+    .limit(10);
+
+  const deletedSet = new Set(staticDeletedStores);
+  const dbStores = (rawDbStores || []).filter((s) => {
+    if (deletedSet.has(s.id)) return false;
+    const meta = parseStoreBio(s.bio);
+    return meta.approval_status === "approved";
+  }).slice(0, 4);
 
   const dummyProducts = [
     {

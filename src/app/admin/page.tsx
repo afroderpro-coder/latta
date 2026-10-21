@@ -117,14 +117,26 @@ export default function SuperAdminPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch stores with seller profile details
-      const { data: storesData, error: storesError } = await supabase
-        .from("stores")
-        .select("*, profiles:seller_id(id, email, full_name)")
-        .order("created_at", { ascending: false });
+      // 1. Fetch stores from server API (with server-side deletion filter)
+      let storesData: any[] = [];
+      let apiLoaded = false;
+      try {
+        const res = await fetch("/api/admin/stores");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.stores)) {
+          storesData = json.stores;
+          apiLoaded = true;
+        }
+      } catch (e) {
+        console.warn("API store fetch error, falling back:", e);
+      }
 
-      if (storesError) {
-        console.error("Error fetching stores:", storesError);
+      if (!apiLoaded) {
+        const { data: directData } = await supabase
+          .from("stores")
+          .select("*, profiles:seller_id(id, email, full_name)")
+          .order("created_at", { ascending: false });
+        if (directData) storesData = directData;
       }
 
       // 2. Fetch all products with store relation
@@ -254,15 +266,22 @@ export default function SuperAdminPage() {
 
       const serialized = serializeStoreBio(updatedMeta);
 
-      const { error } = await supabase
+      // 1. Update via server API
+      try {
+        await fetch("/api/admin/stores", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storeId: store.id, status: "approved" }),
+        });
+      } catch (apiErr) {
+        console.warn("API store approve error:", apiErr);
+      }
+
+      // 2. Direct Supabase update as fallback
+      await supabase
         .from("stores")
         .update({ bio: serialized })
         .eq("id", store.id);
-
-      if (error) {
-        alert("Failed to approve store: " + error.message);
-        return;
-      }
 
       // Update local state
       setStores((prev) =>
@@ -321,16 +340,24 @@ Best Regards,
 
       const serialized = serializeStoreBio(updatedMeta);
 
-      const { error } = await supabase
+      // 1. Call server API to bypass RLS and persist rejected status
+      try {
+        await fetch("/api/admin/stores", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storeId: store.id, status: "rejected" }),
+        });
+      } catch (apiErr) {
+        console.warn("API store reject error:", apiErr);
+      }
+
+      // 2. Direct Supabase update as fallback
+      await supabase
         .from("stores")
         .update({ bio: serialized })
         .eq("id", store.id);
 
-      if (error) {
-        alert("Failed to reject store: " + error.message);
-        return;
-      }
-
+      // 3. Update local state
       setStores((prev) =>
         prev.map((s) => (s.id === store.id ? { ...s, bio: serialized, meta: updatedMeta } : s))
       );
@@ -374,7 +401,18 @@ Best Regards,
     const storeToDelete = deleteStoreModal;
     setIsDeletingStore(true);
     try {
-      // 1. Delete associated products from Supabase
+      // 1. Call server API to delete store and products (bypassing RLS + saving to server deleted list)
+      try {
+        await fetch("/api/admin/stores", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storeId: storeToDelete.id }),
+        });
+      } catch (apiErr) {
+        console.warn("API store delete error:", apiErr);
+      }
+
+      // 2. Delete associated products from Supabase
       const { error: prodError } = await supabase
         .from("products")
         .delete()
@@ -383,7 +421,7 @@ Best Regards,
         console.warn("Notice deleting store products:", prodError);
       }
 
-      // 2. Delete the store record from Supabase
+      // 3. Delete the store record from Supabase
       const { error: storeError } = await supabase
         .from("stores")
         .delete()

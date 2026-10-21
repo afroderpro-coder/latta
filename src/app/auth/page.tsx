@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { parseStoreBio, serializeStoreBio } from "@/utils/storeMetadata";
+import staticDeletedStores from "@/data/deleted_stores.json";
 import {
   Clock,
   CheckCircle2,
@@ -69,7 +70,11 @@ export default function AuthPage({
   const initialMode = resolvedParams.mode === "signup" ? "signup" : "signin";
 
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    resolvedParams.status === "no_store"
+      ? "No active seller store found for this account. Your store application may have been removed."
+      : null
+  );
   const [verificationNotice, setVerificationNotice] = useState<"pending" | "rejected" | null>(
     resolvedParams.status === "pending"
       ? "pending"
@@ -472,32 +477,52 @@ export default function AuthPage({
 
         // Seller approval check
         if (actualRole === "seller" && signInData.user) {
-          const { data: storeData } = await supabase
+          const { data: storesList } = await supabase
             .from("stores")
             .select("id, bio, shop_name")
             .eq("seller_id", signInData.user.id)
-            .single();
+            .order("created_at", { ascending: false });
 
-          if (storeData) {
-            const meta = parseStoreBio(storeData.bio);
+          // Filter out deleted stores (both static and client-persisted)
+          let clientDeletedIds: string[] = [];
+          try {
+            clientDeletedIds = JSON.parse(localStorage.getItem("afroder_deleted_store_ids") || "[]");
+          } catch {}
 
-            if (meta.approval_status === "pending") {
-              await supabase.auth.signOut();
-              useAuthStore.getState().setUser(null);
-              useAuthStore.getState().setProfile(null);
-              setVerificationNotice("pending");
-              setIsLoading(false);
-              return;
-            }
+          const deletedSet = new Set([...staticDeletedStores, ...clientDeletedIds]);
+          const activeStores = (storesList || []).filter((s) => !deletedSet.has(s.id));
 
-            if (meta.approval_status === "rejected") {
-              await supabase.auth.signOut();
-              useAuthStore.getState().setUser(null);
-              useAuthStore.getState().setProfile(null);
+          if (activeStores.length === 0) {
+            await supabase.auth.signOut();
+            useAuthStore.getState().setUser(null);
+            useAuthStore.getState().setProfile(null);
+            setError("No active seller store found. Your store may have been deleted or rejected by administration.");
+            setIsLoading(false);
+            return;
+          }
+
+          const approvedStore = activeStores.find((s) => {
+            const meta = parseStoreBio(s.bio);
+            return meta.approval_status === "approved";
+          });
+
+          if (!approvedStore) {
+            const rejectedStore = activeStores.find((s) => {
+              const meta = parseStoreBio(s.bio);
+              return meta.approval_status === "rejected";
+            });
+
+            await supabase.auth.signOut();
+            useAuthStore.getState().setUser(null);
+            useAuthStore.getState().setProfile(null);
+
+            if (rejectedStore) {
               setVerificationNotice("rejected");
-              setIsLoading(false);
-              return;
+            } else {
+              setVerificationNotice("pending");
             }
+            setIsLoading(false);
+            return;
           }
         }
 

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/utils/supabase/client";
 import { parseStoreBio } from "@/utils/storeMetadata";
+import staticDeletedStores from "@/data/deleted_stores.json";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
@@ -44,31 +45,53 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       }
 
       // Check store approval status
-      const { data: storeData } = await supabase
+      const { data: storesList } = await supabase
         .from("stores")
-        .select("id, bio")
+        .select("id, bio, shop_name")
         .eq("seller_id", profile.id)
-        .single();
+        .order("created_at", { ascending: false });
 
-      if (storeData) {
-        const meta = parseStoreBio(storeData.bio);
+      // Filter out deleted stores (both static and client-persisted)
+      let clientDeletedIds: string[] = [];
+      try {
+        clientDeletedIds = JSON.parse(localStorage.getItem("afroder_deleted_store_ids") || "[]");
+      } catch {}
 
-        if (meta.approval_status === "pending") {
-          await signOut();
-          router.push("/auth?role=seller&mode=signin&status=pending");
-          return;
-        }
+      const deletedSet = new Set([...staticDeletedStores, ...clientDeletedIds]);
+      const activeStores = (storesList || []).filter((s) => !deletedSet.has(s.id));
 
-        if (meta.approval_status === "rejected") {
-          await signOut();
-          router.push("/auth?role=seller&mode=signin&status=rejected");
-          return;
-        }
-
-        setStoreId(storeData.id);
+      if (activeStores.length === 0) {
+        await signOut();
+        router.push("/auth?role=seller&mode=signin&status=no_store");
+        return;
       }
 
-      setIsVerifyingApproval(false);
+      const approvedStore = activeStores.find((s) => {
+        const meta = parseStoreBio(s.bio);
+        return meta.approval_status === "approved";
+      });
+
+      if (approvedStore) {
+        setStoreId(approvedStore.id);
+        setIsVerifyingApproval(false);
+        return;
+      }
+
+      const rejectedStore = activeStores.find((s) => {
+        const meta = parseStoreBio(s.bio);
+        return meta.approval_status === "rejected";
+      });
+
+      if (rejectedStore) {
+        await signOut();
+        router.push("/auth?role=seller&mode=signin&status=rejected");
+        return;
+      }
+
+      // Default to pending
+      await signOut();
+      router.push("/auth?role=seller&mode=signin&status=pending");
+      return;
     }
 
     verifySeller();
