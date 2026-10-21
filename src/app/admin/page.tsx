@@ -73,6 +73,8 @@ export default function SuperAdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passcode, setPasscode] = useState<string>("");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const [stores, setStores] = useState<SellerStoreRecord[]>([]);
   const [productsList, setProductsList] = useState<AdminProductRecord[]>([]);
@@ -102,12 +104,13 @@ export default function SuperAdminPage() {
   const [copied, setCopied] = useState<boolean>(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
-  // Check saved admin session
+  // Always require password whenever Web Controller is opened
   useEffect(() => {
-    const saved = localStorage.getItem("afroder_superadmin_auth");
-    if (saved === "authenticated") {
-      setIsAuthenticated(true);
-    }
+    try {
+      localStorage.removeItem("afroder_superadmin_auth");
+      sessionStorage.removeItem("afroder_superadmin_auth");
+    } catch {}
+    setIsAuthenticated(false);
   }, []);
 
   // Fetch all stores and their approval metadata
@@ -186,20 +189,48 @@ export default function SuperAdminPage() {
     }
   }, [isAuthenticated]);
 
-  const handlePasscodeLogin = (e: React.FormEvent) => {
+  const handlePasscodeLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode === "afroder2026" || passcode === "admin123") {
-      setIsAuthenticated(true);
-      localStorage.setItem("afroder_superadmin_auth", "authenticated");
-      setAuthError(null);
-    } else {
-      setAuthError("Invalid Web Controller passkey. (Default: afroder2026)");
+    if (!passcode.trim()) {
+      setAuthError("Please enter the controller password.");
+      return;
+    }
+
+    setIsVerifying(true);
+    setAuthError(null);
+
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passcode }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setIsAuthenticated(true);
+        setPasscode("");
+        setAuthError(null);
+      } else {
+        setAuthError(data.error || "Incorrect password. Access denied.");
+      }
+    } catch {
+      setAuthError("Network error. Could not verify credentials.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem("afroder_superadmin_auth");
+    setPasscode("");
+    setStores([]);
+    setProductsList([]);
+    try {
+      localStorage.removeItem("afroder_superadmin_auth");
+      sessionStorage.removeItem("afroder_superadmin_auth");
+    } catch {}
   };
 
   // Helper to format phone for WhatsApp
@@ -474,40 +505,64 @@ Best Regards,
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Super Admin Access</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Web Controller Access</h1>
             <p className="text-xs text-muted-foreground mt-1">
-              Enter your Web Controller passkey to manage seller account requests and approvals.
+              Enter your Web Controller password to access seller verification and management.
             </p>
           </div>
 
           <form onSubmit={handlePasscodeLogin} className="space-y-4">
             <div className="space-y-1.5 text-left">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Controller Passkey
+                Controller Password
               </label>
-              <Input
-                type="password"
-                placeholder="Enter passkey (e.g. afroder2026)"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
-                className="h-12 text-center text-lg tracking-widest font-mono"
-                autoFocus
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter password..."
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  className="h-12 pr-11 text-center text-lg tracking-widest font-mono"
+                  autoFocus
+                  disabled={isVerifying}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             {authError && (
-              <div className="p-3 rounded-lg text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
-                {authError}
+              <div className="p-3 rounded-lg text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20 flex items-center justify-center space-x-2">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{authError}</span>
               </div>
             )}
 
-            <Button type="submit" className="w-full h-12 text-base font-semibold tracking-wide">
-              Unlock Super Admin
+            <Button
+              type="submit"
+              disabled={isVerifying || !passcode}
+              className="w-full h-12 text-base font-semibold tracking-wide cursor-pointer"
+            >
+              {isVerifying ? (
+                <div className="flex items-center space-x-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Verifying Access...</span>
+                </div>
+              ) : (
+                "Unlock Web Controller"
+              )}
             </Button>
           </form>
 
-          <p className="text-[11px] text-muted-foreground">
-            Default Controller Passkey: <code className="bg-secondary px-1.5 py-0.5 rounded font-mono">afroder2026</code>
+          <p className="text-[11px] text-muted-foreground flex items-center justify-center gap-1.5 opacity-70">
+            <Lock className="w-3 h-3" />
+            <span>Encrypted Server-Side Security Protection</span>
           </p>
         </div>
       </div>
