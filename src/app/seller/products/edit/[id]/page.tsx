@@ -203,14 +203,21 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   };
 
   const onSubmit = async (data: ProductFormValues) => {
-    if (!profile) return;
     setIsSaving(true);
     setError(null);
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = profile?.id || authData?.user?.id;
+
+      if (!currentUserId) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
       let { data: store } = await supabase
         .from("stores")
         .select("id")
-        .eq("seller_id", profile.id)
+        .eq("seller_id", currentUserId)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 

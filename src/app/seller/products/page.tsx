@@ -15,9 +15,21 @@ export default function SellerProductsPage() {
 
   useEffect(() => {
     async function loadProducts() {
-      if (!profile) return;
-      const { data: store } = await supabase.from("stores").select("id").eq("seller_id", profile.id).single();
-      if (!store) {
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = profile?.id || authData?.user?.id;
+
+      if (!currentUserId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: stores } = await supabase
+        .from("stores")
+        .select("id")
+        .eq("seller_id", currentUserId);
+
+      const storeIds = stores?.map((s) => s.id) || [];
+      if (storeIds.length === 0) {
         setIsLoading(false);
         return;
       }
@@ -25,9 +37,9 @@ export default function SellerProductsPage() {
       const { data } = await supabase
         .from("products")
         .select("*")
-        .eq("store_id", store.id)
+        .in("store_id", storeIds)
         .order("created_at", { ascending: false });
-      
+
       if (data) setProducts(data);
       setIsLoading(false);
     }

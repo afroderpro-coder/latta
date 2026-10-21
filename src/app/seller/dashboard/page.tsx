@@ -19,15 +19,25 @@ export default function SellerDashboardPage() {
 
   useEffect(() => {
     async function loadStats() {
-      if (!profile) return;
-      
-      const { data: store } = await supabase.from("stores").select("id, bio").eq("seller_id", profile.id).single();
-      if (!store) return;
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = profile?.id || authData?.user?.id;
+      if (!currentUserId) return;
+
+      const { data: stores } = await supabase
+        .from("stores")
+        .select("id, bio")
+        .eq("seller_id", currentUserId)
+        .order("created_at", { ascending: false });
+
+      if (!stores || stores.length === 0) return;
+
+      const store = stores.find((s) => s.bio && s.bio.trim() !== "") || stores[0];
+      const storeIds = stores.map((s) => s.id);
 
       const { count: productCount } = await supabase
         .from("products")
         .select("*", { count: 'exact', head: true })
-        .eq("store_id", store.id);
+        .in("store_id", storeIds);
 
       // Load orders from store metadata
       const meta = parseStoreBio(store.bio);
