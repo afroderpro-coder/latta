@@ -1,6 +1,8 @@
 import { supabase } from "@/utils/supabase/client";
 import Link from "next/link";
 
+import staticDeletedStores from "@/data/deleted_stores.json";
+
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const resolvedParams = await searchParams;
   const query = resolvedParams.q || "";
@@ -23,8 +25,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         .order("created_at", { ascending: false })
     ]);
 
-    products = productsResult.data || [];
-    stores = storesResult.data || [];
+    const deletedSet = new Set(staticDeletedStores);
+    products = (productsResult.data || []).filter(
+      (p: any) => !p.store_id || !deletedSet.has(p.store_id)
+    );
+    stores = (storesResult.data || []).filter((s: any) => !deletedSet.has(s.id));
   }
 
   return (

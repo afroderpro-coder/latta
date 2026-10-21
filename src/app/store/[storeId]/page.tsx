@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { parseStoreBio, serializeStoreBio, StoreReview, StoreMetadata } from "@/utils/storeMetadata";
 import { AddToCartButton } from "@/components/ui/AddToCartButton";
+import staticDeletedStores from "@/data/deleted_stores.json";
 
 export default function StorefrontPage({ params }: { params: Promise<{ storeId: string }> }) {
   const unwrappedParams = use(params);
@@ -46,6 +47,12 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
   useEffect(() => {
     async function loadStoreAndProducts() {
       try {
+        if (staticDeletedStores.includes(unwrappedParams.storeId)) {
+          setStore(null);
+          setIsLoading(false);
+          return;
+        }
+
         const { data: storeData } = await supabase
           .from("stores")
           .select("*")

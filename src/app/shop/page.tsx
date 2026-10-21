@@ -2,6 +2,7 @@ import { supabase } from "@/utils/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { AddToCartButton } from "@/components/ui/AddToCartButton";
 import Link from "next/link";
+import staticDeletedStores from "@/data/deleted_stores.json";
 
 // Helper: compute MRP and discount from a sale price
 function getPricingInfo(price: number) {
@@ -67,7 +68,11 @@ export default async function ShopPage() {
     }
   ];
 
-  const products = dbProducts && dbProducts.length > 0 ? dbProducts : dummyProducts;
+  const deletedSet = new Set(staticDeletedStores);
+  const activeDbProducts = (dbProducts || []).filter(
+    (p: any) => !p.store_id || !deletedSet.has(p.store_id)
+  );
+  const products = activeDbProducts.length > 0 ? activeDbProducts : dummyProducts;
 
   return (
     <div className="min-h-screen bg-background">

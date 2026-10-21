@@ -73,7 +73,10 @@ export default async function HomePage() {
     { id: "4", shop_name: "Comfort Co", bio: "Loungewear redefined." }
   ];
 
-  const products = dbProducts && dbProducts.length > 0 ? dbProducts : dummyProducts;
+  const activeProducts = (dbProducts || []).filter(
+    (p: any) => !p.store_id || !deletedSet.has(p.store_id)
+  );
+  const products = activeProducts.length > 0 ? activeProducts : dummyProducts;
   const stores = dbStores && dbStores.length > 0 ? dbStores : dummyStores;
 
   return (
