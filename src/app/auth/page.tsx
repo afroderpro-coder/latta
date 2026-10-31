@@ -34,6 +34,7 @@ import {
   Trash2,
   BadgePercent,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
 
 export const normalizePhone = (phone: string): string => {
@@ -105,6 +106,114 @@ export default function AuthPage({
 
   const SELLER_SIGNUP_DRAFT = "afroder_seller_signup_draft";
 
+  // Buyer (Client) WhatsApp Background OTP State
+  const [otpSent, setOtpSent] = useState(false);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [enteredOtp, setEnteredOtp] = useState("");
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [otpSending, setOtpSending] = useState(false);
+  const [whatsappSentNumber, setWhatsappSentNumber] = useState("");
+
+  // OTP Countdown timer
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (otpCountdown > 0) {
+      timer = setTimeout(() => setOtpCountdown((c) => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [otpCountdown]);
+
+  // Handle Send OTP in the background via WhatsApp API
+  const handleSendOtp = async () => {
+    setError(null);
+    const rawPhone = getValues("phone") || "";
+    const cleanPhone = normalizePhone(rawPhone);
+    if (!cleanPhone || cleanPhone.length < 10) {
+      setError("Please enter a valid 10-digit Mobile / Phone Number first.");
+      return;
+    }
+
+    const fullName = getValues("fullName") || "";
+    if (!fullName || fullName.trim().length < 2) {
+      setError("Please enter your name first.");
+      return;
+    }
+
+    const password = getValues("password") || "";
+    if (!password || password.length < 6) {
+      setError("Please enter a password (at least 6 characters) first.");
+      return;
+    }
+
+    setOtpSending(true);
+
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data?.error || "Failed to send OTP. Please check your phone number.");
+        setOtpSending(false);
+        return;
+      }
+
+      setVerificationToken(data.verificationToken);
+      setOtpSent(true);
+      setEnteredOtp("");
+      setIsOtpVerified(false);
+      setOtpCountdown(30);
+      setWhatsappSentNumber(cleanPhone);
+    } catch (err: any) {
+      setError(err?.message || "Failed to dispatch OTP. Please check your network connection.");
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Handle OTP Input Change & verify via backend API
+  const handleOtpChange = async (val: string) => {
+    const digitsOnly = val.replace(/\D/g, "").slice(0, 4);
+    setEnteredOtp(digitsOnly);
+
+    if (digitsOnly.length === 4 && verificationToken) {
+      setIsVerifyingOtp(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: whatsappSentNumber || normalizePhone(getValues("phone") || ""),
+            otp: digitsOnly,
+            verificationToken,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.verified) {
+          setIsOtpVerified(true);
+          setError(null);
+        } else {
+          setIsOtpVerified(false);
+          setError(data.error || "Incorrect 4-digit OTP. Please check your WhatsApp.");
+        }
+      } catch (e: any) {
+        setIsOtpVerified(false);
+        setError("Error verifying OTP. Please try again.");
+      } finally {
+        setIsVerifyingOtp(false);
+      }
+    } else {
+      setIsOtpVerified(false);
+    }
+  };
+
   const {
     register,
     handleSubmit,
@@ -115,6 +224,42 @@ export default function AuthPage({
   } = useForm<AuthFormValues>({
     resolver: zodResolver(authSchema),
   });
+
+  // Helper to check if a seller application already exists for a phone number
+  const checkSellerApplicationStatus = async (cleanPhone: string) => {
+    if (!cleanPhone || cleanPhone.length < 10) return null;
+    try {
+      const { data: storesList, error } = await supabase
+        .from("stores")
+        .select("id, shop_name, bio, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error || !storesList || storesList.length === 0) return null;
+
+      let clientDeletedIds: string[] = [];
+      try {
+        clientDeletedIds = JSON.parse(localStorage.getItem("afroder_deleted_store_ids") || "[]");
+      } catch {}
+      const deletedSet = new Set([...staticDeletedStores, ...clientDeletedIds]);
+      const activeStores = storesList.filter((s) => !deletedSet.has(s.id));
+
+      for (const store of activeStores) {
+        if (store.bio && store.bio.includes(cleanPhone)) {
+          const meta = parseStoreBio(store.bio);
+          const linkedPhone = normalizePhone(meta.contact_number || meta.phone || meta.whatsapp || "");
+          if (linkedPhone === cleanPhone) {
+            return {
+              store,
+              meta,
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Error checking seller application status:", e);
+    }
+    return null;
+  };
 
   // 1. Restore seller signup draft if returning from UPI app or page navigation
   useEffect(() => {
@@ -131,6 +276,32 @@ export default function AuthPage({
           if (parsed.sellerStep === "payment") setSellerStep("payment");
           if (parsed.receiptPreview) setReceiptPreview(parsed.receiptPreview);
           if (parsed.utrNumber) setUtrNumber(parsed.utrNumber);
+
+          // If phone is already stored, check if application is already under verification
+          if (parsed.phone) {
+            const cleanPhone = normalizePhone(parsed.phone);
+            if (cleanPhone.length >= 10) {
+              checkSellerApplicationStatus(cleanPhone).then((existing) => {
+                if (existing) {
+                  try {
+                    localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+                  } catch {}
+                  if (existing.meta.approval_status === "pending") {
+                    setApplicationSubmitted({
+                      sellerName: existing.meta.seller_name || parsed.fullName || "Seller",
+                      shopName: existing.store.shop_name,
+                      contactNumber: cleanPhone,
+                      email: existing.meta.seller_email || parsed.email || "",
+                      subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+                    });
+                  } else if (existing.meta.approval_status === "approved") {
+                    setMode("signin");
+                    setError("Your seller account has already been approved! Please log in with your password.");
+                  }
+                }
+              });
+            }
+          }
         }
       } catch (e) {
         console.warn("Could not restore signup draft:", e);
@@ -142,7 +313,7 @@ export default function AuthPage({
   const watchedAuthValues = watch();
 
   useEffect(() => {
-    if (role === "seller" && mode === "signup") {
+    if (role === "seller" && mode === "signup" && !applicationSubmitted) {
       try {
         const draft = {
           fullName: watchedAuthValues.fullName || "",
@@ -169,10 +340,10 @@ export default function AuthPage({
         console.warn("Could not auto-save signup draft:", e);
       }
     }
-  }, [watchedAuthValues, sellerStep, receiptPreview, utrNumber, role, mode]);
+  }, [watchedAuthValues, sellerStep, receiptPreview, utrNumber, role, mode, applicationSubmitted]);
 
   // Step 1 Validation & Proceed to Step 2 (Scanner & Payment)
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
     const values = getValues();
     if (!values.fullName || values.fullName.trim().length < 2) {
       setError("Please enter your name.");
@@ -196,8 +367,86 @@ export default function AuthPage({
       return;
     }
 
+    setIsLoading(true);
+    setError(null);
+
+    // Pre-check if this phone number already has an application
+    const existing = await checkSellerApplicationStatus(cleanPhone);
+    setIsLoading(false);
+
+    if (existing) {
+      if (existing.meta.approval_status === "pending") {
+        try {
+          localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+        } catch {}
+        setApplicationSubmitted({
+          sellerName: existing.meta.seller_name || values.fullName || "Seller",
+          shopName: existing.store.shop_name,
+          contactNumber: cleanPhone,
+          email: existing.meta.seller_email || values.email || "",
+          subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+        });
+        return;
+      }
+      if (existing.meta.approval_status === "approved") {
+        setMode("signin");
+        setError("Your seller account has already been approved! Please log in with your password.");
+        return;
+      }
+      if (existing.meta.approval_status === "rejected") {
+        setVerificationNotice("rejected");
+        return;
+      }
+    }
+
     setError(null);
     setSellerStep("payment");
+  };
+
+  // Quick Status Check helper for sellers
+  const handleQuickStatusCheck = async () => {
+    const raw = getValues("phone") || "";
+    const clean = normalizePhone(raw);
+    if (!clean || clean.length < 10) {
+      setError("Please enter your 10-digit WhatsApp / Mobile number in the form to check verification status.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setVerificationNotice(null);
+
+    const existing = await checkSellerApplicationStatus(clean);
+    setIsLoading(false);
+
+    if (!existing) {
+      setError("No seller application found with this phone number. Please create an account to get started.");
+      return;
+    }
+
+    if (existing.meta.approval_status === "pending") {
+      try {
+        localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+      } catch {}
+      setApplicationSubmitted({
+        sellerName: existing.meta.seller_name || "Seller",
+        shopName: existing.store.shop_name,
+        contactNumber: clean,
+        email: existing.meta.seller_email || "",
+        subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+      });
+      return;
+    }
+
+    if (existing.meta.approval_status === "approved") {
+      setMode("signin");
+      setError("Your seller account is approved! Please log in with your password.");
+      return;
+    }
+
+    if (existing.meta.approval_status === "rejected") {
+      setVerificationNotice("rejected");
+      return;
+    }
   };
 
   // Handle Receipt Image Selection
@@ -219,7 +468,7 @@ export default function AuthPage({
   };
 
   const handleCopyUPI = () => {
-    navigator.clipboard.writeText("9671016500@upi");
+    navigator.clipboard.writeText("9671356786@axl");
     setCopiedUPI(true);
     setTimeout(() => setCopiedUPI(false), 2000);
   };
@@ -251,6 +500,15 @@ export default function AuthPage({
           return;
         }
 
+        // Buyer-specific validation (4-digit Phone OTP)
+        if (role === "client") {
+          if (!isOtpVerified || !verificationToken || enteredOtp.length !== 4) {
+            setError("Please enter the exact 4-digit OTP from WhatsApp and verify your phone number before creating an account.");
+            setIsLoading(false);
+            return;
+          }
+        }
+
         // Seller-specific validation
         if (role === "seller") {
           if (!data.shopName || data.shopName.trim().length < 2) {
@@ -262,6 +520,36 @@ export default function AuthPage({
             setError("Please upload your payment receipt or screenshot to complete verification.");
             setIsLoading(false);
             return;
+          }
+
+          // Check if already applied and pending
+          const existing = await checkSellerApplicationStatus(cleanPhone);
+          if (existing) {
+            if (existing.meta.approval_status === "pending") {
+              try {
+                localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+              } catch {}
+              setApplicationSubmitted({
+                sellerName: existing.meta.seller_name || data.fullName || "Seller",
+                shopName: existing.store.shop_name,
+                contactNumber: cleanPhone,
+                email: existing.meta.seller_email || optionalEmail || "",
+                subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+              });
+              setIsLoading(false);
+              return;
+            }
+            if (existing.meta.approval_status === "approved") {
+              setMode("signin");
+              setError("Your seller account has already been approved! Please log in with your password.");
+              setIsLoading(false);
+              return;
+            }
+            if (existing.meta.approval_status === "rejected") {
+              setVerificationNotice("rejected");
+              setIsLoading(false);
+              return;
+            }
           }
         }
 
@@ -285,6 +573,23 @@ export default function AuthPage({
         });
 
         if (signUpError) {
+          if (role === "seller" && signUpError.message.includes("already registered")) {
+            const existing = await checkSellerApplicationStatus(cleanPhone);
+            if (existing && existing.meta.approval_status === "pending") {
+              try {
+                localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+              } catch {}
+              setApplicationSubmitted({
+                sellerName: existing.meta.seller_name || data.fullName || "Seller",
+                shopName: existing.store.shop_name,
+                contactNumber: cleanPhone,
+                email: existing.meta.seller_email || optionalEmail || "",
+                subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+              });
+              setIsLoading(false);
+              return;
+            }
+          }
           setError(
             signUpError.message.includes("already registered")
               ? "This phone number is already registered. Please login with your password."
@@ -295,6 +600,23 @@ export default function AuthPage({
         }
 
         if (signUpData?.user && (!signUpData.user.identities || signUpData.user.identities.length === 0)) {
+          if (role === "seller") {
+            const existing = await checkSellerApplicationStatus(cleanPhone);
+            if (existing && existing.meta.approval_status === "pending") {
+              try {
+                localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+              } catch {}
+              setApplicationSubmitted({
+                sellerName: existing.meta.seller_name || data.fullName || "Seller",
+                shopName: existing.store.shop_name,
+                contactNumber: cleanPhone,
+                email: existing.meta.seller_email || optionalEmail || "",
+                subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+              });
+              setIsLoading(false);
+              return;
+            }
+          }
           setError("This phone number is already registered. Please login instead.");
           setIsLoading(false);
           return;
@@ -519,7 +841,15 @@ export default function AuthPage({
             if (rejectedStore) {
               setVerificationNotice("rejected");
             } else {
-              setVerificationNotice("pending");
+              const pendingStore = activeStores[0];
+              const meta = parseStoreBio(pendingStore.bio);
+              setApplicationSubmitted({
+                sellerName: meta.seller_name || profile?.full_name || "Seller",
+                shopName: pendingStore.shop_name,
+                contactNumber: meta.contact_number || cleanPhone,
+                email: meta.seller_email || profile?.email || "",
+                subscriptionPlan: meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+              });
             }
             setIsLoading(false);
             return;
@@ -620,13 +950,6 @@ export default function AuthPage({
                 <MessageCircle className="w-3.5 h-3.5" />
                 <span>WhatsApp: +91 9671016500</span>
               </a>
-              <a
-                href="tel:+919671016500"
-                className="inline-flex items-center space-x-1.5 border border-emerald-600/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 text-xs font-medium px-3 py-2 rounded-lg transition-colors"
-              >
-                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Call Us</span>
-              </a>
             </div>
           </div>
 
@@ -682,6 +1005,13 @@ export default function AuthPage({
               setError(null);
               setVerificationNotice(null);
               setSellerStep("details");
+              setOtpSent(false);
+              setVerificationToken(null);
+              setEnteredOtp("");
+              setIsOtpVerified(false);
+              setIsVerifyingOtp(false);
+              setWhatsappSentNumber("");
+              setOtpCountdown(0);
             }}
             className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
               mode === "signin"
@@ -698,6 +1028,13 @@ export default function AuthPage({
               setError(null);
               setVerificationNotice(null);
               setSellerStep("details");
+              setOtpSent(false);
+              setVerificationToken(null);
+              setEnteredOtp("");
+              setIsOtpVerified(false);
+              setIsVerifyingOtp(false);
+              setWhatsappSentNumber("");
+              setOtpCountdown(0);
             }}
             className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
               mode === "signup"
@@ -907,6 +1244,121 @@ export default function AuthPage({
                     />
                     {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
                   </div>
+
+                  {/* Buyer (Client) 4-Digit OTP Verification Option */}
+                  {role === "client" && (
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center space-x-1.5" htmlFor="otpInput">
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>WhatsApp OTP Verification</span>
+                          {isOtpVerified && (
+                            <span className="text-[10px] normal-case font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Verified
+                            </span>
+                          )}
+                        </label>
+
+                        {otpSent && (
+                          <button
+                            type="button"
+                            onClick={handleSendOtp}
+                            disabled={otpCountdown > 0 || otpSending || isOtpVerified}
+                            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : "Resend OTP"}
+                          </button>
+                        )}
+                      </div>
+
+                      {!otpSent ? (
+                        <div className="p-3.5 bg-secondary/50 rounded-xl border border-border flex items-center justify-between gap-3">
+                          <div className="text-xs text-muted-foreground">
+                            <p className="font-semibold text-foreground flex items-center gap-1.5">
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                              Verify via WhatsApp
+                            </p>
+                            <p className="text-[11px] mt-0.5">We will send a 4-digit OTP directly to your WhatsApp in the background.</p>
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={handleSendOtp}
+                            isLoading={otpSending}
+                            disabled={otpSending}
+                            className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                          >
+                            Send OTP
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Notice: OTP dispatched to WhatsApp in background */}
+                          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl text-xs space-y-1.5 text-left">
+                            <div className="flex items-center justify-between">
+                              <span className="text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-1.5">
+                                <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                OTP sent directly to WhatsApp (+91 {whatsappSentNumber})
+                              </span>
+                            </div>
+                            <p className="text-muted-foreground text-[11px] leading-relaxed">
+                              Please check your WhatsApp app on your phone to get your 4-digit verification code and enter it below.
+                            </p>
+                          </div>
+
+                          <div className="relative">
+                            <Input
+                              id="otpInput"
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={4}
+                              value={enteredOtp}
+                              onChange={(e) => handleOtpChange(e.target.value)}
+                              disabled={isOtpVerified || isVerifyingOtp}
+                              placeholder="Enter 4-digit OTP"
+                              className={`h-12 text-center text-lg tracking-[0.4em] font-mono font-bold transition-all ${
+                                isOtpVerified
+                                  ? "border-emerald-500 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20"
+                                  : enteredOtp.length === 4 && !isVerifyingOtp
+                                  ? "border-red-500 ring-2 ring-red-500/20"
+                                  : ""
+                              }`}
+                            />
+                            {isVerifyingOtp && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-muted-foreground">
+                                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                              </div>
+                            )}
+                            {isOtpVerified && !isVerifyingOtp && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-emerald-600">
+                                <CheckCircle2 className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Status feedback */}
+                          {isVerifyingOtp ? (
+                            <p className="text-xs text-muted-foreground font-medium flex items-center space-x-1">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Verifying OTP...</span>
+                            </p>
+                          ) : isOtpVerified ? (
+                            <p className="text-xs text-emerald-600 font-medium flex items-center space-x-1">
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Mobile verified! You can now click Create Account below.</span>
+                            </p>
+                          ) : enteredOtp.length === 4 ? (
+                            <p className="text-xs text-destructive font-medium">
+                              Incorrect OTP. Please enter the exact 4 digits from your WhatsApp.
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground">
+                              Enter the 4 digits received on your WhatsApp number.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -915,15 +1367,35 @@ export default function AuthPage({
                 <Button
                   type="button"
                   onClick={handleProceedToPayment}
+                  isLoading={isLoading}
+                  disabled={isLoading}
                   className="w-full h-12 text-base font-semibold tracking-wide mt-2 flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white"
                 >
                   <span>Next: Pay ₹39 & Verify</span>
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               ) : (
-                <Button type="submit" className="w-full h-12 text-base font-semibold tracking-wide mt-2" isLoading={isLoading}>
-                  {mode === "signin" ? (role === "seller" ? "Seller Login" : "Sign In") : "Create Account"}
-                </Button>
+                <div className="space-y-1 mt-2">
+                  <Button
+                    type="submit"
+                    className={`w-full h-12 text-base font-semibold tracking-wide transition-all ${
+                      role === "client" && mode === "signup" && !isOtpVerified
+                        ? "opacity-60 cursor-not-allowed bg-secondary text-muted-foreground border border-border hover:bg-secondary"
+                        : ""
+                    }`}
+                    isLoading={isLoading}
+                    disabled={isLoading || (role === "client" && mode === "signup" && !isOtpVerified)}
+                  >
+                    {mode === "signin" ? (role === "seller" ? "Seller Login" : "Sign In") : "Create Account"}
+                  </Button>
+                  {role === "client" && mode === "signup" && !isOtpVerified && (
+                    <p className="text-center text-[11px] text-muted-foreground pt-1">
+                      {otpSent
+                        ? "Enter the exact 4-digit OTP above to enable account creation."
+                        : "Click 'Send OTP' and verify your phone to proceed."}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -972,10 +1444,10 @@ export default function AuthPage({
                 </div>
 
                 {/* QR Code Container with Scanner Frame */}
-                <div className="relative inline-block mx-auto p-3 bg-white rounded-2xl shadow-md border border-slate-200">
+                <div className="relative inline-block mx-auto p-3 bg-black rounded-2xl shadow-md border border-border">
                   <div className="relative w-48 h-48 md:w-52 md:h-52">
                     <img
-                      src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=upi://pay?pa=9671016500@upi%26pn=AFRODER%26am=39%26cu=INR%26tn=AFRODER%20Seller%20Verification"
+                      src="/seller-payment-qr.png"
                       alt="UPI QR Code for ₹39"
                       className="w-full h-full object-contain rounded-lg"
                     />
@@ -985,7 +1457,7 @@ export default function AuthPage({
                 {/* UPI Details & Copy */}
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-                    <span>UPI ID: <strong className="text-foreground">9671016500@upi</strong></span>
+                    <span>UPI ID: <strong className="text-foreground">9671356786@axl</strong></span>
                     <button
                       type="button"
                       onClick={handleCopyUPI}
@@ -1003,7 +1475,7 @@ export default function AuthPage({
                 {/* Direct UPI Intent Link for Mobile */}
                 <div className="pt-1">
                   <a
-                    href="upi://pay?pa=9671016500@upi&pn=AFRODER&am=39&cu=INR&tn=AFRODER%20Seller%20Verification"
+                    href="upi://pay?pa=9671356786@axl&pn=SARMINA&am=39&cu=INR&tn=AFRODER%20Seller%20Verification"
                     className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
                   >
                     <CreditCard className="w-3.5 h-3.5" />
@@ -1098,6 +1570,21 @@ export default function AuthPage({
             </motion.div>
           )}
         </form>
+
+        {/* Quick Status Check Link for Sellers */}
+        {role === "seller" && (
+          <div className="mt-4 pt-3 border-t border-border/60 text-center">
+            <button
+              type="button"
+              onClick={handleQuickStatusCheck}
+              disabled={isLoading}
+              className="text-xs text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 inline-flex items-center space-x-1.5 transition-colors font-medium cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>Already applied? Check Verification Status</span>
+            </button>
+          </div>
+        )}
 
         <div className="mt-8 pt-6 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <Link href="/" className="inline-flex items-center hover:text-foreground transition-colors">

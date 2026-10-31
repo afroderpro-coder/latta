@@ -136,7 +136,6 @@ export default async function HomePage() {
                   <p className="text-sm text-muted-foreground tracking-wide uppercase">
                     {product.stores?.shop_name || "AFRODER"}
                   </p>
-                  <p className="font-medium pt-1">₹{product.price}</p>
                   
                   <div className="pt-3 transition-all duration-300 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 group-hover:opacity-100 group-hover:translate-y-0">
                     <AddToCartButton product={product as any} />

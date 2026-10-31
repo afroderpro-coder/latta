@@ -48,26 +48,28 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
   };
 
   return (
-    <div className="flex flex-col gap-1.5 w-full">
+    <div className="grid grid-cols-2 gap-2 w-full">
       {/* Add to Cart */}
       <button
         type="button"
         onClick={handleAddToCart}
-        className={`flex items-center justify-center gap-1.5 w-full py-2.5 sm:py-2.5 rounded-lg border-2 text-[11px] sm:text-xs font-bold tracking-wide transition-all duration-200 active:scale-95 touch-manipulation ${
+        className={`flex items-center justify-center gap-1.5 w-full h-9 sm:h-10 px-2 rounded-lg border text-[11px] sm:text-xs font-semibold tracking-wide transition-all duration-200 active:scale-95 touch-manipulation cursor-pointer ${
           isAdded
-            ? "border-[#16a34a] bg-[#e6f7ec] text-[#14532d] shadow-sm"
-            : "border-foreground bg-transparent text-foreground hover:bg-foreground hover:text-background"
+            ? "border-[#16a34a] bg-[#e6f7ec] text-[#14532d] shadow-xs"
+            : "border-foreground/80 bg-background text-foreground hover:bg-foreground hover:text-background hover:border-foreground shadow-2xs"
         }`}
+        title="Add to Cart"
       >
         {isAdded ? (
           <>
             <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 text-[#16a34a]" />
-            Added!
+            <span className="truncate">Added!</span>
           </>
         ) : (
           <>
             <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            Add to Cart
+            <span className="hidden min-[360px]:inline truncate">Add to Cart</span>
+            <span className="min-[360px]:hidden truncate">Add</span>
           </>
         )}
       </button>
@@ -76,10 +78,12 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       <button
         type="button"
         onClick={handleBuyNow}
-        className="flex items-center justify-center gap-1.5 w-full py-2.5 sm:py-2.5 rounded-lg bg-foreground text-background text-[11px] sm:text-xs font-bold tracking-wide hover:bg-foreground/85 transition-all duration-200 active:scale-95 touch-manipulation"
+        className="flex items-center justify-center gap-1.5 w-full h-9 sm:h-10 px-2 rounded-lg bg-foreground text-background border border-foreground text-[11px] sm:text-xs font-semibold tracking-wide hover:bg-foreground/85 transition-all duration-200 active:scale-95 touch-manipulation cursor-pointer shadow-2xs"
+        title="Buy Now"
       >
-        <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-        Buy Now
+        <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 fill-current" />
+        <span className="hidden min-[360px]:inline truncate">Buy Now</span>
+        <span className="min-[360px]:hidden truncate">Buy</span>
       </button>
     </div>
   );
