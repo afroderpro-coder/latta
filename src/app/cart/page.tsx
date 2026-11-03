@@ -43,6 +43,13 @@ export default function CartPage() {
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
 
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: "single" | "selected";
+    itemId?: string;
+    itemName?: string;
+  } | null>(null);
+
   useEffect(() => {
     // Keep selection in sync when items change
     setSelectedIds(new Set(items.map(i => i.id)));
@@ -92,6 +99,16 @@ export default function CartPage() {
     setSelectedIds(new Set());
   };
 
+  const confirmDelete = () => {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.type === "single" && deleteConfirm.itemId) {
+      removeItem(deleteConfirm.itemId);
+    } else if (deleteConfirm.type === "selected") {
+      removeSelected();
+    }
+    setDeleteConfirm(null);
+  };
+
   const handleProceedToWhatsApp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (selectedItems.length === 0) return;
@@ -102,7 +119,7 @@ export default function CartPage() {
       // Base URL for generating exact product and store links
       const baseUrl = typeof window !== "undefined" && window.location.origin
         ? window.location.origin
-        : "https://bucolic-liger-c920b6.netlify.app";
+        : "https://afroder.shop";
 
       // 1. Fetch store records for the items in cart
       const storeMap: Record<string, { shop_name: string; bio?: string }> = {};
@@ -307,7 +324,7 @@ export default function CartPage() {
 
             {selectedIds.size > 0 && (
               <button
-                onClick={removeSelected}
+                onClick={() => setDeleteConfirm({ type: "selected" })}
                 className="text-sm font-medium text-red-500 hover:text-red-600 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -369,7 +386,7 @@ export default function CartPage() {
                         )}
                         <p className="text-muted-foreground text-sm font-medium mt-1">₹{item.price.toFixed(2)}</p>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 w-8">
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteConfirm({ type: "single", itemId: item.id, itemName: item.name })} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 w-8">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -461,6 +478,42 @@ export default function CartPage() {
           </Card>
         </div>
       </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-card border border-border w-full max-w-sm rounded-2xl p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center">
+                <Trash2 className="h-6 w-6 text-red-500" />
+              </div>
+              <h3 className="font-bold text-lg text-foreground">Remove from Cart?</h3>
+              <p className="text-sm text-muted-foreground">
+                {deleteConfirm.type === "single"
+                  ? <>Are you sure you want to remove <span className="font-semibold text-foreground">{deleteConfirm.itemName}</span> from your cart?</>
+                  : <>Are you sure you want to remove <span className="font-semibold text-foreground">{selectedIds.size} selected item{selectedIds.size !== 1 ? "s" : ""}</span> from your cart?</>
+                }
+              </p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── WhatsApp Checkout Details Modal ── */}
       {showCheckoutModal && (

@@ -300,7 +300,7 @@ Dear ${sellerName},
 Congratulations! Your seller application for *${shopName}* has been verified and approved by the AFRODER Web Controller.
 
 Your store is now active! You can now log in to your Seller Portal and start uploading your apparel collection:
-🔗 *Login:* https://latta-marketplace.netlify.app/auth?role=seller&mode=signin
+🔗 *Login:* https://afroder.shop/auth?role=seller&mode=signin
 
 Welcome to the AFRODER family. If you need any assistance setting up your products, feel free to reply to this message.
 

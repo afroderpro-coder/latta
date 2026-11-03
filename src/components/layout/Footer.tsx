@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="w-full border-t border-border bg-card">
       <div className="container mx-auto px-4 py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
           <div className="space-y-4">
             <div className="flex items-center space-x-2.5 mb-2">
               <Image src="/logo-emblem.png" alt="AFRODER" width={44} height={20} className="object-contain" />
@@ -44,8 +44,18 @@ export function Footer() {
               <li><Link href="/about" className="hover:text-primary transition-colors">About Us</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
               <li><Link href="/about" className="hover:text-primary transition-colors">Careers</Link></li>
-              <li><Link href="/auth?role=seller" className="hover:text-primary transition-colors">Sell on AFRODER</Link></li>
             </ul>
+          </div>
+
+          <div>
+            <h4 className="font-semibold mb-4">Sell with Us</h4>
+            <p className="text-sm text-muted-foreground mb-3">Start selling on AFRODER and reach thousands of customers.</p>
+            <Link
+              href="/auth?role=seller"
+              className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              Become a Seller
+            </Link>
           </div>
 
           <div>

@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCartStore } from "@/store/useCartStore";
 import { ShoppingBag, User, LogOut, Search, Menu, X } from "lucide-react";
-import SpecularButton from "@/components/ui/SpecularButton";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useRouter } from "next/navigation";
@@ -97,33 +96,9 @@ export function Navbar() {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
-                <Link href="/auth?role=client&mode=signin">
-                  <Button variant="ghost" size="sm">Login</Button>
-                </Link>
-                <Link href="/auth?role=seller">
-                  <SpecularButton
-                    size="sm"
-                    radius={8}
-                    tint="#ffffff"
-                    tintOpacity={0}
-                    blur={0}
-                    textColor="#f5f5f5"
-                    lineColor="#ffffff"
-                    baseColor="#0f172a"
-                    intensity={1}
-                    shineSize={10}
-                    shineFade={40}
-                    thickness={1}
-                    speed={0.35}
-                    followMouse
-                    proximity={250}
-                    autoAnimate={false}
-                  >
-                    Seller
-                  </SpecularButton>
-                </Link>
-              </div>
+              <Link href="/auth?role=client&mode=signin">
+                <Button variant="ghost" size="sm">Login</Button>
+              </Link>
             )}
           </div>
 
@@ -185,9 +160,6 @@ export function Navbar() {
               <div className="flex flex-col space-y-3">
                 <Link href="/auth?role=client&mode=signin" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button className="w-full h-12 text-lg rounded-full" variant="outline">Login</Button>
-                </Link>
-                <Link href="/auth?role=seller" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full h-12 text-lg rounded-full">Seller Portal</Button>
                 </Link>
               </div>
             )}
