@@ -85,6 +85,196 @@ export default function AuthPage({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isRazorpayLoading, setIsRazorpayLoading] = useState(false);
+
+  // Helper to load Razorpay Checkout SDK dynamically
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") return resolve(false);
+      if ((window as any).Razorpay) return resolve(true);
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Automated Razorpay Payment & Instant Seller Activation
+  const handlePayWithRazorpay = async () => {
+    const values = getValues();
+    if (!values.fullName || values.fullName.trim().length < 2) {
+      setError("Please enter your name.");
+      return;
+    }
+    if (!values.shopName || values.shopName.trim().length < 2) {
+      setError("Please enter your shop/brand name.");
+      return;
+    }
+    const cleanPhone = normalizePhone(values.phone || "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      setError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+    if (!values.password || values.password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setIsRazorpayLoading(true);
+    setError(null);
+
+    try {
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        throw new Error("Could not load Razorpay SDK. Please check your internet connection.");
+      }
+
+      // 1. Create order on backend
+      const orderRes = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: 39,
+          shopName: values.shopName.trim(),
+          phone: cleanPhone,
+        }),
+      });
+
+      const orderData = await orderRes.json();
+      if (!orderRes.ok || !orderData.orderId) {
+        throw new Error(orderData.error || "Failed to initialize payment gateway order.");
+      }
+
+      // 2. Open Razorpay Checkout modal
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: "AFRODER",
+        description: "Seller 3-Month Launch Pass (₹39)",
+        image: "/logo-emblem.png",
+        order_id: orderData.orderId,
+        handler: async function (response: any) {
+          setIsRazorpayLoading(true);
+          try {
+            // 3. Verify payment signature on backend
+            const verifyRes = await fetch("/api/razorpay/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok || !verifyData.success) {
+              throw new Error(verifyData.error || "Payment verification failed.");
+            }
+
+            // 4. Create Account & Store in Supabase with INSTANT APPROVAL
+            const authEmail = phoneToAuthEmail(cleanPhone);
+            const optionalEmail = values.email?.trim() || "";
+
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email: authEmail,
+              password: values.password,
+              options: {
+                data: {
+                  full_name: values.fullName.trim(),
+                  phone: cleanPhone,
+                  contact_number: cleanPhone,
+                  optional_email: optionalEmail,
+                  shop_name: values.shopName.trim(),
+                  role: "seller",
+                  approval_status: "approved",
+                  is_verified: true,
+                  payment_id: response.razorpay_payment_id,
+                },
+              },
+            });
+
+            let userId = signUpData?.user?.id;
+
+            if (signUpError || !userId) {
+              const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+                email: authEmail,
+                password: values.password,
+              });
+              if (signInErr) throw signInErr;
+              userId = signInData.user?.id;
+            }
+
+            if (userId) {
+              await supabase.from("profiles").upsert({
+                id: userId,
+                email: optionalEmail || authEmail,
+                full_name: values.fullName.trim(),
+                role: "seller",
+              });
+
+              const serializedBio = serializeStoreBio({
+                bio: "",
+                phone: cleanPhone,
+                whatsapp: cleanPhone,
+                contact_number: cleanPhone,
+                seller_name: values.fullName.trim(),
+                seller_email: optionalEmail || authEmail,
+                approval_status: "approved",
+                applied_at: new Date().toISOString(),
+                subscription_plan: "₹39 - 3 Months Promotional Access (Razorpay Paid)",
+                payment_amount: 39,
+                payment_id: response.razorpay_payment_id,
+                is_verified: true,
+                paid_at: new Date().toISOString(),
+              });
+
+              await supabase.from("stores").insert({
+                seller_id: userId,
+                shop_name: values.shopName.trim(),
+                bio: serializedBio,
+              });
+
+              try {
+                localStorage.removeItem(SELLER_SIGNUP_DRAFT);
+              } catch {}
+
+              await initializeAuth();
+              router.push("/seller/dashboard");
+            }
+          } catch (postErr: any) {
+            console.error("Post-payment setup error:", postErr);
+            setError("Payment succeeded (" + response.razorpay_payment_id + "), but store setup encountered an issue: " + postErr.message);
+          } finally {
+            setIsRazorpayLoading(false);
+          }
+        },
+        prefill: {
+          name: values.fullName.trim(),
+          contact: cleanPhone,
+          email: values.email?.trim() || `${cleanPhone}@afroder.shop`,
+        },
+        theme: {
+          color: "#0f172a",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsRazorpayLoading(false);
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      console.error("Razorpay initiation error:", err);
+      setError(err.message || "Failed to launch Razorpay gateway.");
+      setIsRazorpayLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -1505,6 +1695,51 @@ export default function AuthPage({
                   <p className="text-xs text-gray-300 mt-1 leading-relaxed">
                     Full seller onboarding, verified merchant badge, and direct customer WhatsApp checkout.
                   </p>
+                </div>
+              </div>
+
+              {/* ── Instant Online Payment via Razorpay Gateway ── */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg space-y-3 border border-emerald-500/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                    <span className="font-bold text-sm">Instant Online Activation</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold bg-white/20 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Fast & Automatic
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-100 leading-relaxed">
+                  Pay ₹39 securely using Google Pay, PhonePe, Paytm, Debit/Credit Card, or NetBanking. Your store activates <strong>immediately</strong> without manual verification!
+                </p>
+                <button
+                  type="button"
+                  onClick={handlePayWithRazorpay}
+                  disabled={isRazorpayLoading || isLoading}
+                  className="w-full h-12 bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-900 font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  {isRazorpayLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-900" />
+                      <span>Opening Payment Gateway...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-4 h-4 text-emerald-600" />
+                      <span>Pay ₹39 Online (Instant Approval)</span>
+                      <ArrowRight className="w-4 h-4 text-slate-600 ml-1" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div className="relative my-3">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-3 text-muted-foreground font-medium">Or pay manually via QR Code</span>
                 </div>
               </div>
 
