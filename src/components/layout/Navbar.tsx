@@ -96,7 +96,7 @@ export function Navbar() {
                 </Button>
               </div>
             ) : (
-              <Link href="/auth?role=client&mode=signin">
+              <Link href="/auth?role=client">
                 <Button variant="ghost" size="sm">Login</Button>
               </Link>
             )}
@@ -158,7 +158,7 @@ export function Navbar() {
               </>
             ) : (
               <div className="flex flex-col space-y-3">
-                <Link href="/auth?role=client&mode=signin" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link href="/auth?role=client" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button className="w-full h-12 text-lg rounded-full" variant="outline">Login</Button>
                 </Link>
               </div>

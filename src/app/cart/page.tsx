@@ -246,7 +246,7 @@ export default function CartPage() {
       return;
     }
     if (!deliveryAddress.trim()) {
-      alert("Please enter your delivery address.");
+      alert("Please enter your delivery address & city.");
       return;
     }
 
@@ -375,6 +375,10 @@ export default function CartPage() {
     const cleanPhone = customerPhone.replace(/\D/g, "");
     if (!cleanPhone || cleanPhone.length < 10) {
       alert("Please enter a valid 10-digit contact phone number.");
+      return;
+    }
+    if (!deliveryAddress.trim()) {
+      alert("Please enter your delivery address & city.");
       return;
     }
 
