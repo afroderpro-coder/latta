@@ -16,8 +16,25 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const amountInRupees = body.amount || 39;
+    const amountInRupees = Number(body.amount) || 39;
     const amountInPaise = Math.round(amountInRupees * 100);
+
+    // Dynamic receipt and notes based on order type (product purchase vs seller subscription)
+    const isProductOrder = body.type === "product_purchase" || Boolean(body.orderRef);
+    const receipt = (body.receipt || (isProductOrder ? `ord_${Date.now()}` : `sub_${Date.now()}`)).slice(0, 40);
+
+    const notes = body.notes || (isProductOrder
+      ? {
+          type: "product_order",
+          order_ref: body.orderRef || "",
+          customer_name: body.customerName || "",
+          phone: body.customerPhone || "",
+        }
+      : {
+          plan: "Seller 3 Months Launch Pass",
+          shop_name: body.shopName || "",
+          phone: body.phone || "",
+        });
 
     // Call Razorpay REST API to create an order
     const authHeader = `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
@@ -30,12 +47,8 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         amount: amountInPaise,
         currency: "INR",
-        receipt: `seller_sub_${Date.now()}`,
-        notes: {
-          plan: "Seller 3 Months Launch Pass",
-          shop_name: body.shopName || "",
-          phone: body.phone || "",
-        },
+        receipt,
+        notes,
       }),
     });
 

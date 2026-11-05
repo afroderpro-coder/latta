@@ -25,6 +25,11 @@ export interface StoreOrder {
   items: StoreOrderItem[];
   total_amount: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  payment_method?: "razorpay" | "whatsapp";
+  payment_status?: "paid" | "pending";
+  payment_id?: string;
+  razorpay_order_id?: string;
+  paid_at?: string;
 }
 
 export interface StoreMetadata {

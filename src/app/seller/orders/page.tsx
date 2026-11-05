@@ -17,7 +17,8 @@ import {
   PackageCheck, 
   XCircle, 
   MessageCircle, 
-  ExternalLink 
+  ExternalLink,
+  CreditCard 
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
@@ -177,6 +178,17 @@ export default function SellerOrdersPage() {
                         minute: "2-digit",
                       })}
                     </span>
+                    {order.payment_method === "razorpay" ? (
+                      <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
+                        <CreditCard className="w-3 h-3" />
+                        <span>Razorpay Paid</span>
+                      </span>
+                    ) : (
+                      <span className="bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/30 px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />
+                        <span>WhatsApp / COD</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">

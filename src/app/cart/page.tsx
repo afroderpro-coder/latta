@@ -18,7 +18,12 @@ import {
   Phone, 
   User, 
   ArrowRight,
-  X
+  X,
+  CreditCard,
+  Sparkles,
+  ShieldCheck,
+  Loader2,
+  Lock
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
@@ -34,8 +39,17 @@ export default function CartPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(items.map(i => i.id)));
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isRazorpayLoading, setIsRazorpayLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "whatsapp">("razorpay");
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [placedOrderInfo, setPlacedOrderInfo] = useState<{
+    id: string;
+    method: "razorpay" | "whatsapp";
+    paymentId?: string;
+    total: number;
+    itemsCount: number;
+  } | null>(null);
 
   // Delivery & Customer Form
   const [customerName, setCustomerName] = useState("");
@@ -109,90 +123,278 @@ export default function CartPage() {
     setDeleteConfirm(null);
   };
 
+  // Dynamically load Razorpay Checkout SDK
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") {
+        resolve(false);
+        return;
+      }
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Helper: Persist order into each seller's store metadata so it shows in their dashboard
+  const saveOrderToStores = async ({
+    orderRef,
+    paymentMethod,
+    paymentStatus,
+    paymentId,
+    razorpayOrderId,
+  }: {
+    orderRef: string;
+    paymentMethod: "razorpay" | "whatsapp";
+    paymentStatus: "paid" | "pending";
+    paymentId?: string;
+    razorpayOrderId?: string;
+  }) => {
+    const storeMap: Record<string, { shop_name: string; bio?: string }> = {};
+    const storeIds = Array.from(new Set(selectedItems.map((i) => i.storeId).filter(Boolean)));
+    if (storeIds.length > 0) {
+      try {
+        const { data: stores } = await supabase
+          .from("stores")
+          .select("id, shop_name, bio")
+          .in("id", storeIds);
+        stores?.forEach((s) => {
+          storeMap[s.id] = { shop_name: s.shop_name, bio: s.bio };
+        });
+      } catch (err) {
+        console.error("Could not fetch store names:", err);
+      }
+    }
+
+    const itemsByStore: Record<string, typeof selectedItems> = {};
+    selectedItems.forEach((item) => {
+      const sId = item.storeId || "unknown";
+      if (!itemsByStore[sId]) itemsByStore[sId] = [];
+      itemsByStore[sId].push(item);
+    });
+
+    for (const [sId, storeItems] of Object.entries(itemsByStore)) {
+      if (sId && sId !== "unknown") {
+        try {
+          const currentStore = storeMap[sId];
+          if (currentStore) {
+            const storeMeta = parseStoreBio(currentStore.bio);
+            const storeTotal = storeItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+            const storeOrder: StoreOrder = {
+              id: orderRef,
+              created_at: new Date().toISOString(),
+              customer_name: customerName.trim() || profile?.full_name || "Guest Customer",
+              customer_phone: customerPhone.trim() || "Not provided",
+              delivery_address: deliveryAddress.trim() || "Not provided",
+              customer_notes: customerNotes.trim() || "",
+              items: storeItems.map((i) => ({
+                product_id: i.productId,
+                product_title: i.name,
+                size: i.variant?.size,
+                quantity: i.quantity,
+                price: i.price,
+                image_url: i.imageUrl,
+              })),
+              total_amount: storeTotal,
+              status: paymentStatus === "paid" ? "processing" : "pending",
+              payment_method: paymentMethod,
+              payment_status: paymentStatus,
+              payment_id: paymentId,
+              razorpay_order_id: razorpayOrderId,
+              paid_at: paymentStatus === "paid" ? new Date().toISOString() : undefined,
+            };
+
+            const updatedOrders = [storeOrder, ...(storeMeta.orders || [])];
+            const updatedBio = serializeStoreBio({
+              ...storeMeta,
+              orders: updatedOrders,
+            });
+
+            await supabase
+              .from("stores")
+              .update({ bio: updatedBio })
+              .eq("id", sId);
+          }
+        } catch (persistErr) {
+          console.error("Error saving order to store metadata:", persistErr);
+        }
+      }
+    }
+    return storeMap;
+  };
+
+  // ── Online Payment via Razorpay ──
+  const handlePayWithRazorpay = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (selectedItems.length === 0) return;
+
+    if (!customerName.trim()) {
+      alert("Please enter your full name.");
+      return;
+    }
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      alert("Please enter a valid 10-digit contact phone number.");
+      return;
+    }
+    if (!deliveryAddress.trim()) {
+      alert("Please enter your delivery address.");
+      return;
+    }
+
+    setIsRazorpayLoading(true);
+
+    try {
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        throw new Error("Could not load Razorpay payment gateway. Please check your internet connection.");
+      }
+
+      const orderRef = "ORD-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const phoneToUse = cleanPhone.slice(-10);
+
+      // 1. Create order on backend
+      const orderRes = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: selectedTotal,
+          type: "product_purchase",
+          orderRef,
+          customerName: customerName.trim(),
+          customerPhone: phoneToUse,
+        }),
+      });
+
+      const orderData = await orderRes.json();
+      if (!orderRes.ok || !orderData.orderId) {
+        throw new Error(orderData.error || "Failed to initialize payment gateway order.");
+      }
+
+      // 2. Open Razorpay Checkout modal
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: "AFRODER",
+        description: `Order #${orderRef} (${selectedItems.length} product${selectedItems.length !== 1 ? "s" : ""})`,
+        image: "/logo-emblem.png",
+        order_id: orderData.orderId,
+        handler: async function (response: any) {
+          setIsRazorpayLoading(true);
+          try {
+            // 3. Verify payment signature on backend
+            const verifyRes = await fetch("/api/razorpay/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok || !verifyData.success) {
+              throw new Error(verifyData.error || "Payment verification failed.");
+            }
+
+            // 4. Save order to stores metadata
+            await saveOrderToStores({
+              orderRef,
+              paymentMethod: "razorpay",
+              paymentStatus: "paid",
+              paymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+            });
+
+            // 5. Clear purchased items and show confirmation
+            const purchasedCount = selectedItems.length;
+            const purchasedTotal = selectedTotal;
+            selectedIds.forEach((id) => removeItem(id));
+            setSelectedIds(new Set());
+            setShowCheckoutModal(false);
+            setPlacedOrderInfo({
+              id: orderRef,
+              method: "razorpay",
+              paymentId: response.razorpay_payment_id,
+              total: purchasedTotal,
+              itemsCount: purchasedCount,
+            });
+            setOrderPlaced(true);
+          } catch (err: any) {
+            alert("Error confirming payment: " + (err.message || "Please contact support with Payment ID: " + response.razorpay_payment_id));
+          } finally {
+            setIsRazorpayLoading(false);
+          }
+        },
+        prefill: {
+          name: customerName.trim(),
+          contact: phoneToUse,
+          email: profile?.email || `${phoneToUse}@afroder.shop`,
+        },
+        theme: {
+          color: "#000000",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsRazorpayLoading(false);
+          },
+        },
+      };
+
+      const razorpayInstance = new (window as any).Razorpay(options);
+      razorpayInstance.on("payment.failed", function (response: any) {
+        alert("Payment failed: " + (response.error?.description || "Transaction declined."));
+        setIsRazorpayLoading(false);
+      });
+      razorpayInstance.open();
+    } catch (err: any) {
+      alert("Checkout error: " + (err.message || "Please try again."));
+      setIsRazorpayLoading(false);
+    }
+  };
+
+  // ── Manual / WhatsApp Order ──
   const handleProceedToWhatsApp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (selectedItems.length === 0) return;
 
+    if (!customerName.trim()) {
+      alert("Please enter your full name.");
+      return;
+    }
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      alert("Please enter a valid 10-digit contact phone number.");
+      return;
+    }
+
     setIsCheckingOut(true);
 
     try {
-      // Base URL for generating exact product and store links
       const baseUrl = typeof window !== "undefined" && window.location.origin
         ? window.location.origin
         : "https://afroder.shop";
 
-      // 1. Fetch store records for the items in cart
-      const storeMap: Record<string, { shop_name: string; bio?: string }> = {};
-      const storeIds = Array.from(new Set(selectedItems.map((i) => i.storeId).filter(Boolean)));
-      if (storeIds.length > 0) {
-        try {
-          const { data: stores } = await supabase
-            .from("stores")
-            .select("id, shop_name, bio")
-            .in("id", storeIds);
-          stores?.forEach((s) => {
-            storeMap[s.id] = { shop_name: s.shop_name, bio: s.bio };
-          });
-        } catch (err) {
-          console.error("Could not fetch store names:", err);
-        }
-      }
-
-      // 2. Persist order into each seller's store metadata so it shows in their Orders dashboard
-      const itemsByStore: Record<string, typeof selectedItems> = {};
-      selectedItems.forEach((item) => {
-        const sId = item.storeId || "unknown";
-        if (!itemsByStore[sId]) itemsByStore[sId] = [];
-        itemsByStore[sId].push(item);
-      });
-
       const orderRef = "ORD-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      for (const [sId, storeItems] of Object.entries(itemsByStore)) {
-        if (sId && sId !== "unknown") {
-          try {
-            const currentStore = storeMap[sId];
-            if (currentStore) {
-              const storeMeta = parseStoreBio(currentStore.bio);
-              const storeTotal = storeItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+      // Persist order with pending status
+      const storeMap = await saveOrderToStores({
+        orderRef,
+        paymentMethod: "whatsapp",
+        paymentStatus: "pending",
+      });
 
-              const storeOrder: StoreOrder = {
-                id: orderRef,
-                created_at: new Date().toISOString(),
-                customer_name: customerName.trim() || profile?.full_name || "Guest Customer",
-                customer_phone: customerPhone.trim() || "Not provided",
-                delivery_address: deliveryAddress.trim() || "Not provided",
-                customer_notes: customerNotes.trim() || "",
-                items: storeItems.map((i) => ({
-                  product_id: i.productId,
-                  product_title: i.name,
-                  size: i.variant?.size,
-                  quantity: i.quantity,
-                  price: i.price,
-                  image_url: i.imageUrl,
-                })),
-                total_amount: storeTotal,
-                status: "pending",
-              };
-
-              const updatedOrders = [storeOrder, ...(storeMeta.orders || [])];
-              const updatedBio = serializeStoreBio({
-                ...storeMeta,
-                orders: updatedOrders,
-              });
-
-              await supabase
-                .from("stores")
-                .update({ bio: updatedBio })
-                .eq("id", sId);
-            }
-          } catch (persistErr) {
-            console.error("Error saving order to store metadata:", persistErr);
-          }
-        }
-      }
-
-      // 3. Format Items list with clickable product and store links for WhatsApp
+      // Format Items list with clickable product and store links for WhatsApp
       const itemsText = selectedItems.map((item, index) => {
         const storeInfo = storeMap[item.storeId];
         const storeName = storeInfo?.shop_name || "AFRODER Partner Store";
@@ -213,7 +415,7 @@ export default function CartPage() {
         return itemDetails;
       }).join("\n\n");
 
-      // 4. Format complete message
+      // Format complete WhatsApp message
       const customerInfo = [
         `• Name: ${customerName.trim() || profile?.full_name || "Guest Customer"}`,
         customerPhone.trim() ? `• Phone: ${customerPhone.trim()}` : null,
@@ -231,18 +433,22 @@ export default function CartPage() {
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `📍 Please confirm my order availability and dispatch instructions!`;
 
-      // 5. Build WhatsApp URL
       const whatsappUrl = `https://wa.me/${WHATSAPP_ORDER_NUMBER}?text=${encodeURIComponent(message)}`;
 
-      // 6. Remove checked-out items from cart
+      const purchasedCount = selectedItems.length;
+      const purchasedTotal = selectedTotal;
       selectedIds.forEach((id) => removeItem(id));
       setSelectedIds(new Set());
       setShowCheckoutModal(false);
+      setPlacedOrderInfo({
+        id: orderRef,
+        method: "whatsapp",
+        total: purchasedTotal,
+        itemsCount: purchasedCount,
+      });
       setOrderPlaced(true);
 
-      // 7. Open WhatsApp in new tab/window
       window.open(whatsappUrl, "_blank");
-
     } catch (err: any) {
       alert("Failed to initiate checkout: " + (err.message || "Please try again"));
     } finally {
@@ -250,18 +456,64 @@ export default function CartPage() {
     }
   };
 
+  // Order Success Screen (Online Razorpay or WhatsApp)
   if (orderPlaced && items.length === 0) {
+    const isRazorpay = placedOrderInfo?.method === "razorpay";
+
     return (
-      <div className="container mx-auto px-4 py-16 text-center max-w-xl">
-        <div className="h-16 w-16 bg-green-500/10 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle2 className="h-8 w-8" />
+      <div className="container mx-auto px-4 py-16 text-center max-w-xl animate-in fade-in zoom-in-95 duration-200">
+        <div className={`h-16 w-16 ${isRazorpay ? "bg-emerald-500/10 text-emerald-500" : "bg-green-500/10 text-green-600"} rounded-full flex items-center justify-center mx-auto mb-4`}>
+          {isRazorpay ? <ShieldCheck className="h-8 w-8 text-white" /> : <CheckCircle2 className="h-8 w-8" />}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Order Initiated via WhatsApp!</h1>
-        <p className="text-muted-foreground mb-6">
-          Your order details have been forwarded to our WhatsApp sales desk (<span className="font-semibold text-foreground">+91 9671016500</span>). We will confirm your order and shipping details shortly.
+
+        <h1 className="text-3xl font-extrabold tracking-tight mb-2 text-foreground">
+          {isRazorpay ? "Payment Confirmed & Order Placed!" : "Order Forwarded to WhatsApp!"}
+        </h1>
+
+        <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
+          {isRazorpay
+            ? "Your online payment has been verified successfully. The partner stores have received your order details and are preparing your shipment."
+            : "Your order details have been forwarded to our WhatsApp sales desk (+91 9671016500). We will confirm your order and shipping details shortly."}
         </p>
+
+        {/* Order Receipt Card */}
+        {placedOrderInfo && (
+          <div className="bg-card border border-border rounded-2xl p-5 mb-6 text-left space-y-3 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-border text-xs">
+              <span className="text-muted-foreground">Order Reference:</span>
+              <span className="font-mono font-bold text-foreground text-sm">#{placedOrderInfo.id}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Payment Method:</span>
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                {isRazorpay ? (
+                  <>
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Razorpay Online (PAID)</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-3.5 h-3.5 text-green-600" />
+                    <span>WhatsApp / Cash on Delivery</span>
+                  </>
+                )}
+              </span>
+            </div>
+            {placedOrderInfo.paymentId && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Transaction ID:</span>
+                <span className="font-mono text-muted-foreground">{placedOrderInfo.paymentId}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between pt-2 border-t border-border text-sm font-bold">
+              <span>Total Paid:</span>
+              <span className="text-primary text-base">₹{placedOrderInfo.total.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link href="/shop">
+          <Link href="/shop" className="w-full sm:w-auto">
             <Button size="lg" className="w-full sm:w-auto">Continue Shopping</Button>
           </Link>
           <a
@@ -271,7 +523,7 @@ export default function CartPage() {
             className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20ba5a] text-white px-6 py-3 rounded-md font-semibold text-sm transition-colors w-full sm:w-auto justify-center"
           >
             <MessageCircle className="h-4 w-4" />
-            <span>Chat on WhatsApp</span>
+            <span>Chat with Sales Desk</span>
           </a>
         </div>
       </div>
@@ -456,24 +708,27 @@ export default function CartPage() {
                 </div>
               </div>
 
-              {/* WhatsApp Checkout Button */}
+              {/* Primary Checkout Button */}
               <button
                 type="button"
                 onClick={() => setShowCheckoutModal(true)}
                 disabled={selectedItems.length === 0}
-                className="w-full mt-2 flex items-center justify-center gap-2.5 bg-[#25D366] hover:bg-[#20ba5a] active:scale-[0.99] text-white py-3.5 px-4 rounded-xl font-bold text-base shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full mt-2 flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 active:scale-[0.99] py-3.5 px-4 rounded-xl font-bold text-base shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <MessageCircle className="h-5 w-5 fill-white text-white" />
+                <Lock className="h-4 w-4" />
                 <span>
                   {selectedItems.length === 0
                     ? "Select Items to Checkout"
-                    : `Checkout on WhatsApp (₹${selectedTotal.toFixed(2)})`}
+                    : `Proceed to Checkout (₹${selectedTotal.toFixed(2)})`}
                 </span>
+                <ArrowRight className="h-4 w-4 ml-1" />
               </button>
 
-              <p className="text-[11px] text-center text-muted-foreground">
-                📱 Order directly via WhatsApp at <span className="font-semibold">+91 9671016500</span>
-              </p>
+              <div className="flex items-center justify-center gap-2 pt-1 text-[11px] text-muted-foreground">
+                <span>🔒 256-Bit Encrypted</span>
+                <span>•</span>
+                <span>Razorpay Online & WhatsApp</span>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -515,18 +770,18 @@ export default function CartPage() {
         </div>
       )}
 
-      {/* ── WhatsApp Checkout Details Modal ── */}
+      {/* ── Checkout Details & Payment Selection Modal ── */}
       {showCheckoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-card border border-border w-full max-w-lg rounded-2xl p-6 shadow-2xl relative space-y-5 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-card border border-border w-full max-w-lg rounded-2xl p-6 shadow-2xl relative space-y-5 animate-in fade-in zoom-in-95 duration-200 my-8">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-full bg-green-500/10 text-[#25D366]">
-                  <MessageCircle className="h-5 w-5" />
+                <div className="p-2 rounded-full bg-primary/10 text-primary">
+                  <ShoppingBag className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-foreground">Confirm WhatsApp Order</h3>
-                  <p className="text-xs text-muted-foreground">Direct order to +91 9671016500</p>
+                  <h3 className="font-bold text-lg text-foreground">Checkout & Delivery</h3>
+                  <p className="text-xs text-muted-foreground">Complete your order with instant online payment or WhatsApp</p>
                 </div>
               </div>
               <button
@@ -537,75 +792,188 @@ export default function CartPage() {
               </button>
             </div>
 
-            <form onSubmit={handleProceedToWhatsApp} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5" />
-                  <span>Your Full Name *</span>
+            <div className="space-y-4">
+              {/* Payment Method Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Choose Payment Method
                 </label>
-                <Input
-                  placeholder="e.g. Rahul Sharma"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  required
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Razorpay Online */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("razorpay")}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                      paymentMethod === "razorpay"
+                        ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                        : "border-border hover:border-border/80 bg-secondary/30"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                        <CreditCard className="w-3.5 h-3.5 text-primary" />
+                        <span>Pay Online</span>
+                      </span>
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.2 rounded-full">
+                        Instant
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      UPI (GPay, PhonePe), Cards & NetBanking via Razorpay
+                    </p>
+                  </button>
+
+                  {/* WhatsApp Order */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("whatsapp")}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                      paymentMethod === "whatsapp"
+                        ? "border-[#25D366] bg-[#25D366]/5 ring-1 ring-[#25D366] shadow-xs"
+                        : "border-border hover:border-border/80 bg-secondary/30"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                        <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                        <span>WhatsApp / COD</span>
+                      </span>
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider bg-secondary text-muted-foreground border border-border px-1.5 py-0.2 rounded-full">
+                        Sales Desk
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      Direct manual order confirmation with sales desk
+                    </p>
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5" />
-                  <span>Contact Phone Number *</span>
-                </label>
-                <Input
-                  placeholder="e.g. 9876543210"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  required
-                />
+              {/* Customer Delivery Details */}
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5" />
+                    <span>Your Full Name *</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. Rahul Sharma"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    <span>Contact Phone Number *</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. 9876543210 (10 digits)"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    <span>Delivery Address & City *</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. Flat 302, Green Heights, Bandra, Mumbai - 400050"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Order Notes / Delivery Instructions (Optional)
+                  </label>
+                  <Input
+                    placeholder="e.g. Call before delivery / leave at reception"
+                    value={customerNotes}
+                    onChange={(e) => setCustomerNotes(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5" />
-                  <span>Delivery Address / City (Optional)</span>
-                </label>
-                <Input
-                  placeholder="e.g. House #24, Green Park, New Delhi"
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                />
-              </div>
-
-              <div className="p-3 bg-muted/40 rounded-xl border border-border/60 text-xs space-y-1">
+              {/* Order Cost Summary Box */}
+              <div className="p-3.5 bg-muted/40 rounded-xl border border-border/80 text-xs space-y-1.5">
                 <div className="flex justify-between font-medium">
                   <span className="text-muted-foreground">Order Items:</span>
-                  <span className="text-foreground">{selectedItems.length} products</span>
+                  <span className="text-foreground">{selectedItems.length} product{selectedItems.length !== 1 ? "s" : ""}</span>
                 </div>
-                <div className="flex justify-between font-bold text-sm pt-1 border-t border-border/40">
+                <div className="flex justify-between font-medium">
+                  <span className="text-muted-foreground">Payment Mode:</span>
+                  <span className="font-semibold text-foreground">
+                    {paymentMethod === "razorpay" ? "⚡ Razorpay Online (Instant)" : "💬 WhatsApp / COD"}
+                  </span>
+                </div>
+                <div className="flex justify-between font-bold text-sm pt-2 border-t border-border/60">
                   <span>Payable Total:</span>
-                  <span className="text-primary">₹{selectedTotal.toFixed(2)}</span>
+                  <span className="text-primary text-base">₹{selectedTotal.toFixed(2)}</span>
                 </div>
               </div>
 
+              {/* Action Buttons */}
               <div className="pt-2 flex gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setShowCheckoutModal(false)}
+                  disabled={isCheckingOut || isRazorpayLoading}
                   className="flex-1"
                 >
                   Cancel
                 </Button>
-                <button
-                  type="submit"
-                  disabled={isCheckingOut}
-                  className="flex-1 flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20ba5a] text-white py-2.5 px-4 rounded-md font-semibold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                >
-                  <MessageCircle className="h-4 w-4 fill-white" />
-                  <span>Send on WhatsApp</span>
-                </button>
+
+                {paymentMethod === "razorpay" ? (
+                  <button
+                    type="button"
+                    onClick={handlePayWithRazorpay}
+                    disabled={isCheckingOut || isRazorpayLoading}
+                    className="flex-2 flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 py-2.5 px-4 rounded-xl font-bold text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isRazorpayLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Connecting Razorpay...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4" />
+                        <span>Pay ₹{selectedTotal.toFixed(2)} Online</span>
+                        <ArrowRight className="h-4 w-4 ml-0.5" />
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleProceedToWhatsApp}
+                    disabled={isCheckingOut || isRazorpayLoading}
+                    className="flex-2 flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20ba5a] text-white py-2.5 px-4 rounded-xl font-bold text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isCheckingOut ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-white" />
+                        <span>Sending Order...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="h-4 w-4 fill-white" />
+                        <span>Send on WhatsApp</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

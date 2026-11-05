@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase/client";
-import { parseStoreBio, serializeStoreBio, StoreMetadata } from "@/utils/storeMetadata";
+import { parseStoreBio, serializeStoreBio, StoreMetadata, StoreOrder } from "@/utils/storeMetadata";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Image from "next/image";
@@ -33,6 +33,12 @@ import {
   EyeOff,
   Tag,
   FileText,
+  CreditCard,
+  ShoppingBag,
+  Truck,
+  Calendar,
+  MapPin,
+  MessageCircle,
 } from "lucide-react";
 
 interface SellerStoreRecord {
@@ -69,6 +75,13 @@ interface AdminProductRecord {
   } | null;
 }
 
+interface AdminOrderRecord extends StoreOrder {
+  storeId: string;
+  storeName: string;
+  sellerId?: string;
+  sellerName?: string;
+}
+
 export default function SuperAdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passcode, setPasscode] = useState<string>("");
@@ -79,8 +92,11 @@ export default function SuperAdminPage() {
   const [stores, setStores] = useState<SellerStoreRecord[]>([]);
   const [productsList, setProductsList] = useState<AdminProductRecord[]>([]);
   const [productsTotal, setProductsTotal] = useState<number>(0);
+  const [ordersList, setOrdersList] = useState<AdminOrderRecord[]>([]);
+  const [orderFilterStatus, setOrderFilterStatus] = useState<string>("all");
+  const [orderPaymentFilter, setOrderPaymentFilter] = useState<"all" | "razorpay" | "whatsapp">("all");
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "products">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "products" | "orders">("pending");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [productActionInProgress, setProductActionInProgress] = useState<string | null>(null);
 
@@ -187,6 +203,24 @@ export default function SuperAdminPage() {
             };
           });
         setStores(enriched);
+
+        // Aggregate all customer orders across all stores
+        const allOrders: AdminOrderRecord[] = [];
+        enriched.forEach((store) => {
+          if (store.meta?.orders && Array.isArray(store.meta.orders)) {
+            store.meta.orders.forEach((order) => {
+              allOrders.push({
+                ...order,
+                storeId: store.id,
+                storeName: store.shop_name || "AFRODER Partner Store",
+                sellerId: store.seller_id,
+                sellerName: store.meta.seller_name || store.profiles?.full_name || "Merchant",
+              });
+            });
+          }
+        });
+        allOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setOrdersList(allOrders);
       }
     } catch (err) {
       console.error(err);
@@ -496,10 +530,77 @@ Best Regards,
     }
   };
 
+  // ── Order Management Handlers ──
+  const updateAdminOrderStatus = async (orderId: string, storeId: string, newStatus: StoreOrder["status"]) => {
+    try {
+      setActionInProgress(`order_${orderId}`);
+      const store = stores.find((s) => s.id === storeId);
+      if (!store) throw new Error("Store not found");
+
+      const meta = parseStoreBio(store.bio);
+      const updatedOrders = (meta.orders || []).map((o) =>
+        o.id === orderId ? { ...o, status: newStatus } : o
+      );
+
+      const updatedBio = serializeStoreBio({
+        ...meta,
+        orders: updatedOrders,
+      });
+
+      const { error } = await supabase
+        .from("stores")
+        .update({ bio: updatedBio })
+        .eq("id", storeId);
+
+      if (error) throw error;
+
+      setOrdersList((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+      setStores((prev) =>
+        prev.map((s) =>
+          s.id === storeId
+            ? { ...s, bio: updatedBio, meta: { ...meta, orders: updatedOrders } }
+            : s
+        )
+      );
+    } catch (err: any) {
+      alert("Failed to update status: " + (err.message || "Please try again"));
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   // Filter stores by tab & search query
   const pendingStores = stores.filter((s) => s.meta.approval_status === "pending");
   const approvedStores = stores.filter((s) => s.meta.approval_status === "approved" || !s.meta.approval_status);
   const rejectedStores = stores.filter((s) => s.meta.approval_status === "rejected");
+
+  const totalRevenue = ordersList.reduce((acc, o) => acc + (o.total_amount || 0), 0);
+  const razorpayOrdersCount = ordersList.filter((o) => o.payment_method === "razorpay").length;
+  const whatsappOrdersCount = ordersList.filter((o) => o.payment_method === "whatsapp" || !o.payment_method).length;
+
+  const filteredOrders = ordersList.filter((o) => {
+    // Payment filter
+    if (orderPaymentFilter === "razorpay" && o.payment_method !== "razorpay") return false;
+    if (orderPaymentFilter === "whatsapp" && o.payment_method === "razorpay") return false;
+
+    // Status filter
+    if (orderFilterStatus !== "all" && o.status !== orderFilterStatus) return false;
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const idMatch = (o.id || "").toLowerCase().includes(q);
+      const nameMatch = (o.customer_name || "").toLowerCase().includes(q);
+      const phoneMatch = (o.customer_phone || "").toLowerCase().includes(q);
+      const storeMatch = (o.storeName || "").toLowerCase().includes(q);
+      const payIdMatch = (o.payment_id || "").toLowerCase().includes(q);
+      return idMatch || nameMatch || phoneMatch || storeMatch || payIdMatch;
+    }
+
+    return true;
+  });
 
   const currentList =
     activeTab === "pending"
@@ -647,7 +748,7 @@ Best Regards,
 
       <main className="container mx-auto px-4 sm:px-6 pt-8 max-w-7xl space-y-8">
         {/* ── Metric Cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Pending Requests */}
           <div
             onClick={() => setActiveTab("pending")}
@@ -725,12 +826,33 @@ Best Regards,
             <div className="text-3xl font-bold tracking-tight text-foreground">{productsTotal}</div>
             <p className="text-xs text-primary font-medium mt-1">Click to View & Manage Catalog</p>
           </div>
+
+          {/* Customer Orders */}
+          <div
+            onClick={() => setActiveTab("orders")}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer ${
+              activeTab === "orders"
+                ? "bg-purple-500/10 border-purple-500/40 ring-2 ring-purple-500/20 shadow-md"
+                : "bg-card border-border hover:border-purple-500/30"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Live Orders</span>
+              <div className="w-8 h-8 rounded-full bg-purple-500/15 flex items-center justify-center text-purple-600">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold tracking-tight text-foreground">{ordersList.length}</div>
+            <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">
+              ₹{totalRevenue.toLocaleString()} Total Sales ({razorpayOrdersCount} Online)
+            </p>
+          </div>
         </div>
 
         {/* ── Main Section Header & Search ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-6 rounded-2xl border border-border shadow-xs">
           {/* Navigation Tabs */}
-          <div className="flex p-1 bg-secondary/60 rounded-xl border border-border max-w-xl w-full overflow-x-auto">
+          <div className="flex p-1 bg-secondary/60 rounded-xl border border-border max-w-2xl w-full overflow-x-auto">
             <button
               onClick={() => setActiveTab("pending")}
               className={`flex-1 py-2 px-3 text-xs md:text-sm font-semibold rounded-lg transition-all flex items-center justify-center space-x-1.5 whitespace-nowrap ${
@@ -777,13 +899,30 @@ Best Regards,
               <Package className="w-3.5 h-3.5 mr-1" />
               <span>Products ({productsTotal})</span>
             </button>
+            <button
+              onClick={() => setActiveTab("orders")}
+              className={`flex-1 py-2 px-3 text-xs md:text-sm font-semibold rounded-lg transition-all flex items-center justify-center space-x-1.5 whitespace-nowrap ${
+                activeTab === "orders"
+                  ? "bg-background shadow-xs text-purple-600 dark:text-purple-400 font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5 mr-1" />
+              <span>Orders ({ordersList.length})</span>
+            </button>
           </div>
 
           {/* Search Input */}
           <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={activeTab === "products" ? "Search title, shop, category..." : "Search shop, name, phone..."}
+              placeholder={
+                activeTab === "products"
+                  ? "Search title, shop, category..."
+                  : activeTab === "orders"
+                  ? "Search order ID, buyer, phone, shop..."
+                  : "Search shop, name, phone..."
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-10 text-sm rounded-xl"
@@ -946,6 +1085,286 @@ Best Regards,
                   );
                 })}
               </div>
+            </div>
+          )
+        ) : activeTab === "orders" ? (
+          /* ── Customer Orders Management View ── */
+          isLoading ? (
+            <div className="bg-card p-12 rounded-2xl border border-border text-center space-y-3">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto text-primary" />
+              <p className="text-sm text-muted-foreground font-medium">Loading customer orders...</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Filter Pills Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/30 p-3 rounded-2xl border border-border">
+                {/* Payment Filter */}
+                <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+                  <span className="text-muted-foreground font-semibold px-2">Payment:</span>
+                  <button
+                    onClick={() => setOrderPaymentFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                      orderPaymentFilter === "all"
+                        ? "bg-foreground text-background shadow-xs"
+                        : "bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    All ({ordersList.length})
+                  </button>
+                  <button
+                    onClick={() => setOrderPaymentFilter("razorpay")}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                      orderPaymentFilter === "razorpay"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <CreditCard className="w-3 h-3" />
+                    <span>Razorpay Online ({razorpayOrdersCount})</span>
+                  </button>
+                  <button
+                    onClick={() => setOrderPaymentFilter("whatsapp")}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                      orderPaymentFilter === "whatsapp"
+                        ? "bg-[#25D366] text-white shadow-xs"
+                        : "bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                    <span>WhatsApp / COD ({whatsappOrdersCount})</span>
+                  </button>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+                  <span className="text-muted-foreground font-semibold px-2">Status:</span>
+                  {["all", "pending", "processing", "shipped", "delivered", "cancelled"].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setOrderFilterStatus(st)}
+                      className={`px-2.5 py-1 rounded-lg font-medium capitalize transition-all cursor-pointer ${
+                        orderFilterStatus === st
+                          ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orders List */}
+              {filteredOrders.length === 0 ? (
+                <div className="bg-card p-16 rounded-2xl border border-border text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto text-muted-foreground">
+                    <ShoppingBag className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold">No Orders Found</h3>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    {searchQuery
+                      ? `No orders matching "${searchQuery}". Try searching by customer name, phone, or order ID.`
+                      : "When customers place orders via Razorpay or WhatsApp, they will appear here in real time."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                    <span>
+                      Showing <strong className="text-foreground">{filteredOrders.length}</strong> order{filteredOrders.length === 1 ? "" : "s"}
+                    </span>
+                    <span>Total Value: <strong className="text-foreground font-mono">₹{filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0).toFixed(2)}</strong></span>
+                  </div>
+
+                  {filteredOrders.map((order) => {
+                    const isRazorpay = order.payment_method === "razorpay";
+                    const cleanPhone = order.customer_phone ? order.customer_phone.replace(/[^0-9]/g, "") : "";
+                    const waLink = cleanPhone ? `https://wa.me/${cleanPhone.length === 10 ? "91" + cleanPhone : cleanPhone}` : null;
+                    const callLink = cleanPhone ? `tel:${cleanPhone}` : null;
+                    const isUpdating = actionInProgress === `order_${order.id}`;
+
+                    return (
+                      <div
+                        key={`${order.storeId}_${order.id}`}
+                        className="bg-card rounded-2xl border border-border p-5 md:p-6 shadow-xs hover:shadow-md transition-all space-y-4"
+                      >
+                        {/* Order Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-mono font-bold text-foreground text-sm">
+                              #{order.id}
+                            </span>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {new Date(order.created_at).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+
+                            {/* Payment Method Badge */}
+                            {isRazorpay ? (
+                              <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1.5">
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Razorpay (PAID)</span>
+                                {order.payment_id && (
+                                  <span className="font-mono text-[10px] opacity-75">
+                                    • {order.payment_id}
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/30 px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1.5">
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>WhatsApp / COD</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {/* Status Selector */}
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={order.status || "pending"}
+                                onChange={(e) => updateAdminOrderStatus(order.id, order.storeId, e.target.value as any)}
+                                disabled={isUpdating}
+                                className="text-xs font-semibold bg-secondary/80 hover:bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-foreground cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="pending">Status: Pending</option>
+                                <option value="processing">Status: Processing</option>
+                                <option value="shipped">Status: Shipped</option>
+                                <option value="delivered">Status: Delivered</option>
+                                <option value="cancelled">Status: Cancelled</option>
+                              </select>
+                              {isUpdating && <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />}
+                            </div>
+
+                            {/* Total Amount */}
+                            <span className="text-lg font-extrabold text-foreground font-mono">
+                              ₹{order.total_amount?.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Customer & Merchant Metadata Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-secondary/30 border border-border text-xs sm:text-sm">
+                          {/* Buyer Info */}
+                          <div className="space-y-1.5">
+                            <div className="font-semibold text-foreground flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 text-primary" />
+                              <span>{order.customer_name}</span>
+                            </div>
+                            <div className="text-muted-foreground flex items-center gap-2 flex-wrap">
+                              <Phone className="w-3 h-3" />
+                              <span>{order.customer_phone}</span>
+                              {waLink && (
+                                <a
+                                  href={waLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#25D366] hover:underline flex items-center gap-0.5 text-xs font-bold ml-1"
+                                  title="Chat with buyer on WhatsApp"
+                                >
+                                  <MessageCircle className="w-3 h-3" /> WhatsApp
+                                </a>
+                              )}
+                              {callLink && (
+                                <a
+                                  href={callLink}
+                                  className="text-primary hover:underline text-xs font-bold ml-1"
+                                >
+                                  Call
+                                </a>
+                              )}
+                            </div>
+                            {order.delivery_address && (
+                              <div className="text-muted-foreground flex items-start gap-1.5 pt-0.5">
+                                <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                                <span className="text-xs leading-relaxed">{order.delivery_address}</span>
+                              </div>
+                            )}
+                            {order.customer_notes && (
+                              <p className="text-xs text-muted-foreground italic pt-1">
+                                Note: &quot;{order.customer_notes}&quot;
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Store / Merchant Info */}
+                          <div className="space-y-1.5 border-t md:border-t-0 md:border-l border-border md:pl-4 pt-2 md:pt-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              Fulfilled By Store
+                            </span>
+                            <div className="font-semibold text-foreground flex items-center gap-1.5">
+                              <Store className="w-3.5 h-3.5 text-primary" />
+                              <span>{order.storeName}</span>
+                            </div>
+                            {order.sellerName && (
+                              <p className="text-xs text-muted-foreground">
+                                Merchant: <span className="text-foreground font-medium">{order.sellerName}</span>
+                              </p>
+                            )}
+                            <div className="pt-1">
+                              <Link href={`/store/${order.storeId}`} target="_blank">
+                                <span className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                                  <span>View Storefront</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </span>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Order Items List */}
+                        <div className="space-y-2 pt-1">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Ordered Products ({order.items?.length || 0})
+                          </span>
+                          <div className="space-y-2">
+                            {order.items?.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-background border border-border text-xs gap-3"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-12 h-12 rounded-lg bg-secondary overflow-hidden shrink-0 border border-border">
+                                    {item.image_url ? (
+                                      <img
+                                        src={item.image_url}
+                                        alt={item.product_title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
+                                        No image
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-foreground truncate" title={item.product_title}>
+                                      {item.product_title}
+                                    </p>
+                                    <p className="text-muted-foreground text-[11px]">
+                                      {item.size ? `Size: ${item.size} • ` : ""}Qty: {item.quantity} × ₹{item.price.toFixed(2)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="font-bold text-foreground font-mono shrink-0">
+                                  ₹{(item.price * item.quantity).toFixed(2)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )
         ) : (
