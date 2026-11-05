@@ -10,6 +10,7 @@ import { PageTransitionLoader } from "@/components/ui/PageTransitionLoader";
 export function MainLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isSellerRoute = pathname?.startsWith("/seller");
+  const isAuthRoute = pathname?.startsWith("/auth");
 
   return (
     <>
@@ -19,7 +20,7 @@ export function MainLayoutWrapper({ children }: { children: React.ReactNode }) {
       <CartToast />
       {!isSellerRoute && <Navbar />}
       <main className="flex-1 flex flex-col">{children}</main>
-      {!isSellerRoute && <Footer />}
+      {!isSellerRoute && !isAuthRoute && <Footer />}
     </>
   );
 }

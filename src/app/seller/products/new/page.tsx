@@ -28,7 +28,7 @@ const productSchema = z.object({
   title: z.string().min(2, "Title is required (minimum 2 characters)."),
   description: z.string().optional().default(""),
   price: z.coerce
-    .number({ invalid_type_error: "Price must be a valid number." })
+    .number()
     .min(0.01, "Price must be greater than 0."),
   category: z.string().min(1, "Category is required."),
   brand: z.string().optional().default(""),
@@ -311,13 +311,17 @@ export default function NewProductPage() {
               approval_status: "approved",
             }),
           })
-          .select("id, shop_name")
+          .select("id, shop_name, bio")
           .single();
 
         if (createStoreError || !newStore) {
           throw new Error(createStoreError?.message || "Could not link to seller store.");
         }
         store = newStore;
+      }
+
+      if (!store) {
+        throw new Error("Could not find or create a seller store.");
       }
 
       // 2. Insert product record

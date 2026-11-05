@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const rawKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
+    const rawKeySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    const keyId = rawKeyId?.trim().replace(/^["']|["']$/g, "");
+    const keySecret = rawKeySecret?.trim().replace(/^["']|["']$/g, "");
 
     if (!keyId || !keySecret) {
       return NextResponse.json(
@@ -38,9 +41,16 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("Razorpay order creation failed:", errorData);
+      console.error("Razorpay order creation failed:", response.status, errorData);
+      
+      const desc = errorData?.error?.description || "";
+      let userFriendlyError = desc || "Failed to create Razorpay order.";
+      if (desc === "Authentication failed") {
+        userFriendlyError = `Razorpay Authentication Failed: If your Razorpay dashboard is in Live Mode, please generate and use Live API Keys (rzp_live_...) instead of test keys.`;
+      }
+
       return NextResponse.json(
-        { error: errorData?.error?.description || "Failed to create Razorpay order." },
+        { error: userFriendlyError },
         { status: response.status }
       );
     }

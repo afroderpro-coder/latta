@@ -86,6 +86,7 @@ export default function AuthPage({
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isRazorpayLoading, setIsRazorpayLoading] = useState(false);
+  const [showManualPayment, setShowManualPayment] = useState(false);
 
   // Helper to load Razorpay Checkout SDK dynamically
   const loadRazorpayScript = (): Promise<boolean> => {
@@ -184,11 +185,11 @@ export default function AuthPage({
               password: values.password,
               options: {
                 data: {
-                  full_name: values.fullName.trim(),
+                  full_name: (values.fullName || "").trim(),
                   phone: cleanPhone,
                   contact_number: cleanPhone,
                   optional_email: optionalEmail,
-                  shop_name: values.shopName.trim(),
+                  shop_name: (values.shopName || "").trim(),
                   role: "seller",
                   approval_status: "approved",
                   is_verified: true,
@@ -212,7 +213,7 @@ export default function AuthPage({
               await supabase.from("profiles").upsert({
                 id: userId,
                 email: optionalEmail || authEmail,
-                full_name: values.fullName.trim(),
+                full_name: (values.fullName || "").trim(),
                 role: "seller",
               });
 
@@ -221,7 +222,7 @@ export default function AuthPage({
                 phone: cleanPhone,
                 whatsapp: cleanPhone,
                 contact_number: cleanPhone,
-                seller_name: values.fullName.trim(),
+                seller_name: (values.fullName || "").trim(),
                 seller_email: optionalEmail || authEmail,
                 approval_status: "approved",
                 applied_at: new Date().toISOString(),
@@ -234,7 +235,7 @@ export default function AuthPage({
 
               await supabase.from("stores").insert({
                 seller_id: userId,
-                shop_name: values.shopName.trim(),
+                shop_name: (values.shopName || "").trim(),
                 bio: serializedBio,
               });
 
@@ -253,7 +254,7 @@ export default function AuthPage({
           }
         },
         prefill: {
-          name: values.fullName.trim(),
+          name: (values.fullName || "").trim(),
           contact: cleanPhone,
           email: values.email?.trim() || `${cleanPhone}@afroder.shop`,
         },
@@ -1662,218 +1663,259 @@ export default function AuthPage({
             </div>
           )}
 
-          {/* STEP 2: Scanner & ₹39 Subscription Payment (Only for Seller Signup) */}
+          {/* STEP 2: ₹39 Subscription Payment (Only for Seller Signup) */}
           {role === "seller" && mode === "signup" && sellerStep === "payment" && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="space-y-5"
+              className="space-y-4"
             >
               {/* Step indicator header */}
               <div className="flex items-center justify-between pb-2 border-b border-border text-xs">
-                <span className="font-semibold text-muted-foreground">Step 2 of 2: Seller Plan & Verification</span>
-                <span className="font-bold text-emerald-600 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                  ₹39 / 3 Months
+                <span className="font-semibold text-muted-foreground">Step 2 of 2: Seller Launch Pass</span>
+                <span className="font-mono text-[11px] font-semibold text-zinc-300 bg-secondary/80 px-2.5 py-0.5 rounded-full border border-border">
+                  ₹39 / 90 Days
                 </span>
               </div>
 
-              {/* Premium Plan Highlight Card */}
-              <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2.5 py-0.5 rounded-full">
-                    Special Launch Pass
-                  </span>
-                  <span className="text-xs text-gray-400">90 Days Validity</span>
-                </div>
+              {!showManualPayment ? (
+                /* Primary View: Instant Online Activation */
+                <div className="space-y-4">
+                  {/* Luxury Merchant Pass Card */}
+                  <div className="bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-white rounded-2xl p-6 border border-border shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-300 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">
+                        Merchant Launch Pass
+                      </span>
+                      <span className="text-[11px] text-zinc-400 font-medium">90 Days Validity</span>
+                    </div>
 
-                <div>
-                  <div className="flex items-baseline space-x-1.5">
-                    <span className="text-3xl font-extrabold tracking-tight text-white">₹39</span>
-                    <span className="text-xs text-gray-300 font-medium">for 3 Months (₹13/month)</span>
-                  </div>
-                  <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-                    Full seller onboarding, verified merchant badge, and direct customer WhatsApp checkout.
-                  </p>
-                </div>
-              </div>
-
-              {/* ── Instant Online Payment via Razorpay Gateway ── */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg space-y-3 border border-emerald-500/30">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                    <span className="font-bold text-sm">Instant Online Activation</span>
-                  </div>
-                  <span className="text-[10px] font-extrabold bg-white/20 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                    Fast & Automatic
-                  </span>
-                </div>
-                <p className="text-xs text-emerald-100 leading-relaxed">
-                  Pay ₹39 securely using Google Pay, PhonePe, Paytm, Debit/Credit Card, or NetBanking. Your store activates <strong>immediately</strong> without manual verification!
-                </p>
-                <button
-                  type="button"
-                  onClick={handlePayWithRazorpay}
-                  disabled={isRazorpayLoading || isLoading}
-                  className="w-full h-12 bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-900 font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-                >
-                  {isRazorpayLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-900" />
-                      <span>Opening Payment Gateway...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="w-4 h-4 text-emerald-600" />
-                      <span>Pay ₹39 Online (Instant Approval)</span>
-                      <ArrowRight className="w-4 h-4 text-slate-600 ml-1" />
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div className="relative my-3">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-3 text-muted-foreground font-medium">Or pay manually via QR Code</span>
-                </div>
-              </div>
-
-              {/* QR Scanner Card */}
-              <div className="bg-secondary/40 border border-border rounded-2xl p-5 text-center space-y-3">
-                <div className="flex items-center justify-center space-x-1.5 text-xs font-semibold text-foreground">
-                  <QrCode className="w-4 h-4 text-emerald-600" />
-                  <span>Scan QR Code to Pay ₹39</span>
-                </div>
-
-                {/* QR Code Container with Scanner Frame */}
-                <div className="relative inline-block mx-auto p-3 bg-black rounded-2xl shadow-md border border-border">
-                  <div className="relative w-48 h-48 md:w-52 md:h-52">
-                    <img
-                      src="/seller-payment-qr.png"
-                      alt="UPI QR Code for ₹39"
-                      className="w-full h-full object-contain rounded-lg"
-                    />
-                  </div>
-                </div>
-
-                {/* UPI Details & Copy */}
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-                    <span>UPI ID: <strong className="text-foreground">9671356786@axl</strong></span>
-                    <button
-                      type="button"
-                      onClick={handleCopyUPI}
-                      className="p-1 text-xs rounded hover:bg-secondary text-primary font-semibold inline-flex items-center"
-                      title="Copy UPI ID"
-                    >
-                      {copiedUPI ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Accepts GPay, PhonePe, Paytm, BHIM & all UPI apps
-                  </p>
-                </div>
-
-                {/* Direct UPI Intent Link for Mobile */}
-                <div className="pt-1">
-                  <a
-                    href="upi://pay?pa=9671356786@axl&pn=SARMINA&am=39&cu=INR&tn=AFRODER%20Seller%20Verification"
-                    className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>Pay ₹39 Directly via UPI App</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Upload Payment Receipt / Screenshot Box */}
-              <div className="space-y-2 text-left">
-                <label className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center justify-between">
-                  <span>Upload Payment Receipt *</span>
-                  <span className="text-[10px] lowercase text-emerald-600 font-normal">screenshot or photo</span>
-                </label>
-
-                {receiptPreview ? (
-                  <div className="relative p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 flex items-center justify-between gap-3">
-                    <div className="flex items-center space-x-3 overflow-hidden">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-background shrink-0">
-                        <img src={receiptPreview} alt="Receipt preview" className="w-full h-full object-cover" />
+                    <div>
+                      <div className="flex items-baseline space-x-2">
+                        <span className="text-4xl font-extrabold tracking-tight text-white">₹39</span>
+                        <span className="text-xs text-zinc-400">for 3 months (only ₹13/month)</span>
                       </div>
-                      <div className="text-xs truncate">
-                        <p className="font-semibold text-foreground truncate">{receiptFile?.name || "Payment Receipt"}</p>
-                        <p className="text-emerald-600 text-[11px] flex items-center gap-1 font-medium">
-                          <CheckCircle className="w-3 h-3" /> Receipt Attached
-                        </p>
+                      <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                        Instant seller onboarding, verified merchant badge, full store catalog, and direct customer WhatsApp checkout.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-3 border-t border-white/10 text-xs text-zinc-300">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-white shrink-0" />
+                        <span>Instant store activation (No waiting for review)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-white shrink-0" />
+                        <span>Unlimited product listings & WhatsApp orders</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-white shrink-0" />
+                        <span>Verified merchant badge & dedicated shop URL</span>
                       </div>
                     </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={handlePayWithRazorpay}
+                        disabled={isRazorpayLoading || isLoading}
+                        className="w-full h-12 bg-white hover:bg-zinc-200 active:scale-[0.99] text-black font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isRazorpayLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-black" />
+                            <span>Connecting Payment Gateway...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="w-4 h-4 text-black" />
+                            <span>Pay ₹39 Online (Instant Approval)</span>
+                            <ArrowRight className="w-4 h-4 text-zinc-800 ml-1" />
+                          </>
+                        )}
+                      </button>
+                      <p className="text-[10px] text-center text-zinc-500 mt-2">
+                        🔒 256-Bit Encrypted • UPI (GPay, PhonePe, Paytm), Cards & NetBanking
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle to manual QR */}
+                  <div className="pt-1 text-center">
                     <button
                       type="button"
-                      onClick={() => {
-                        setReceiptFile(null);
-                        setReceiptPreview(null);
-                      }}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title="Remove receipt"
+                      onClick={() => setShowManualPayment(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4 cursor-pointer inline-flex items-center gap-1.5"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>Prefer manual payment via QR code? Click here</span>
                     </button>
                   </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-border hover:border-primary/50 bg-secondary/30 hover:bg-secondary/50 rounded-xl cursor-pointer transition-all">
-                    <Upload className="w-6 h-6 text-muted-foreground mb-1.5" />
-                    <span className="text-xs font-semibold text-foreground">Click to upload payment screenshot</span>
-                    <span className="text-[11px] text-muted-foreground">PNG, JPG up to 8MB</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleReceiptChange}
-                      className="hidden"
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSellerStep("details")}
+                      disabled={isLoading || isRazorpayLoading}
+                      className="w-full h-11 text-xs"
+                    >
+                      <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to Edit Details
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* Secondary View: Manual Payment via QR Code & Screenshot */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualPayment(false)}
+                      className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 font-medium cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Switch back to Instant Online Payment</span>
+                    </button>
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold">
+                      Manual Review
+                    </span>
+                  </div>
+
+                  {/* QR Scanner Card */}
+                  <div className="bg-secondary/40 border border-border rounded-2xl p-5 text-center space-y-3">
+                    <div className="flex items-center justify-center space-x-1.5 text-xs font-semibold text-foreground">
+                      <QrCode className="w-4 h-4 text-foreground" />
+                      <span>Scan QR Code to Pay ₹39</span>
+                    </div>
+
+                    {/* QR Code Container */}
+                    <div className="relative inline-block mx-auto p-3 bg-black rounded-2xl shadow-md border border-border">
+                      <div className="relative w-48 h-48 md:w-52 md:h-52">
+                        <img
+                          src="/seller-payment-qr.png"
+                          alt="UPI QR Code for ₹39"
+                          className="w-full h-full object-contain rounded-lg"
+                        />
+                      </div>
+                    </div>
+
+                    {/* UPI Details & Copy */}
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                        <span>UPI ID: <strong className="text-foreground">9671356786@axl</strong></span>
+                        <button
+                          type="button"
+                          onClick={handleCopyUPI}
+                          className="p-1 text-xs rounded hover:bg-secondary text-primary font-semibold inline-flex items-center"
+                          title="Copy UPI ID"
+                        >
+                          {copiedUPI ? <Check className="w-3.5 h-3.5 text-foreground" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Accepts GPay, PhonePe, Paytm, BHIM & all UPI apps
+                      </p>
+                    </div>
+
+                    {/* Direct UPI Intent Link for Mobile */}
+                    <div className="pt-1">
+                      <a
+                        href="upi://pay?pa=9671356786@axl&pn=SARMINA&am=39&cu=INR&tn=AFRODER%20Seller%20Verification"
+                        className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Pay ₹39 Directly via UPI App</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Upload Payment Receipt / Screenshot Box */}
+                  <div className="space-y-2 text-left">
+                    <label className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center justify-between">
+                      <span>Upload Payment Receipt *</span>
+                      <span className="text-[10px] lowercase text-muted-foreground font-normal">screenshot or photo</span>
+                    </label>
+
+                    {receiptPreview ? (
+                      <div className="relative p-3 rounded-xl border border-border bg-secondary/30 flex items-center justify-between gap-3">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-background shrink-0">
+                            <img src={receiptPreview} alt="Receipt preview" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="text-xs truncate">
+                            <p className="font-semibold text-foreground truncate">{receiptFile?.name || "Payment Receipt"}</p>
+                            <p className="text-foreground text-[11px] flex items-center gap-1 font-medium">
+                              <CheckCircle className="w-3 h-3" /> Receipt Attached
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReceiptFile(null);
+                            setReceiptPreview(null);
+                          }}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remove receipt"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-border hover:border-foreground/50 bg-secondary/30 hover:bg-secondary/50 rounded-xl cursor-pointer transition-all">
+                        <Upload className="w-6 h-6 text-muted-foreground mb-1.5" />
+                        <span className="text-xs font-semibold text-foreground">Click to upload payment screenshot</span>
+                        <span className="text-[11px] text-muted-foreground">PNG, JPG up to 8MB</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleReceiptChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Optional UTR / Reference ID */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-semibold tracking-wider uppercase text-muted-foreground" htmlFor="utr">
+                      UPI UTR / Reference ID (Optional)
+                    </label>
+                    <Input
+                      id="utr"
+                      placeholder="e.g. 4289XXXXXXXX (12 digits)"
+                      value={utrNumber}
+                      onChange={(e) => setUtrNumber(e.target.value)}
+                      className="h-10 text-xs"
                     />
-                  </label>
-                )}
-              </div>
+                  </div>
 
-              {/* Optional UTR / Reference ID */}
-              <div className="space-y-1.5 text-left">
-                <label className="text-xs font-semibold tracking-wider uppercase text-muted-foreground" htmlFor="utr">
-                  UPI UTR / Reference ID (Optional)
-                </label>
-                <Input
-                  id="utr"
-                  placeholder="e.g. 4289XXXXXXXX (12 digits)"
-                  value={utrNumber}
-                  onChange={(e) => setUtrNumber(e.target.value)}
-                  className="h-10 text-xs"
-                />
-              </div>
+                  {/* Navigation Actions */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowManualPayment(false)}
+                      disabled={isLoading}
+                      className="flex-1 h-11 text-xs"
+                    >
+                      Cancel
+                    </Button>
 
-              {/* Navigation Actions */}
-              <div className="flex items-center gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSellerStep("details")}
-                  disabled={isLoading}
-                  className="flex-1 h-11 text-xs"
-                >
-                  <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Edit Details
-                </Button>
-
-                <Button
-                  type="submit"
-                  disabled={!receiptPreview || isLoading}
-                  isLoading={isLoading}
-                  className="flex-2 h-11 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                >
-                  <Check className="mr-1.5 h-4 w-4" />
-                  Submit & Create Account
-                </Button>
-              </div>
+                    <Button
+                      type="submit"
+                      disabled={!receiptPreview || isLoading}
+                      isLoading={isLoading}
+                      className="flex-2 h-11 text-xs font-semibold bg-white text-black hover:bg-zinc-200"
+                    >
+                      <Check className="mr-1.5 h-4 w-4" />
+                      Submit & Create Account
+                    </Button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </form>

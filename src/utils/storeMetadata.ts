@@ -48,6 +48,9 @@ export interface StoreMetadata {
   payment_amount?: number;
   payment_receipt_url?: string;
   payment_utr?: string;
+  payment_id?: string;
+  is_verified?: boolean;
+  paid_at?: string;
 }
 
 export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata {
