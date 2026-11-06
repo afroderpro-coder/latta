@@ -113,8 +113,8 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
             {products.map((product) => (
               <Link href={`/product/${product.id}`} key={product.id} className="group block">
-                {/* Compact Image Container */}
-                <div className="aspect-square bg-secondary/60 overflow-hidden mb-4 relative border border-border/80 rounded-xl shadow-xs group-hover:shadow-md transition-all duration-300">
+                {/* Compact Image Container with Glassy Overlay */}
+                <div className="aspect-square bg-secondary/60 overflow-hidden relative border border-border/80 rounded-2xl shadow-xs group-hover:shadow-md transition-all duration-300">
                   {product.image_urls?.[0] ? (
                     <img 
                       src={product.image_urls[0]} 
@@ -126,20 +126,23 @@ export default async function HomePage() {
                       Preview
                     </div>
                   )}
-                  {/* Subtle hover overlay */}
-                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-300" />
-                </div>
 
-                {/* Title aside and View Now Button */}
-                <div className="flex items-center justify-between gap-3 px-1">
-                  <h4 className="min-w-0 flex-1 text-left font-semibold text-base tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
-                    {product.title}
-                  </h4>
+                  {/* Gradient shadow for text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-                  <span className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-foreground text-background text-xs font-semibold tracking-wide group-hover:bg-foreground/85 transition-all shrink-0 shadow-2xs">
-                    <span>View Now</span>
-                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </span>
+                  {/* Glassy Title (Left Bottom) & View Now Button (Right Bottom) */}
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 z-10 pointer-events-none">
+                    <div className="bg-black/60 dark:bg-black/75 backdrop-blur-md border border-white/20 text-white px-3 py-1.5 rounded-xl shadow-lg max-w-[62%] min-w-0">
+                      <h4 className="font-semibold text-xs sm:text-sm tracking-tight truncate">
+                        {product.title}
+                      </h4>
+                    </div>
+
+                    <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-zinc-950 text-xs font-bold tracking-wide shadow-lg group-hover:bg-zinc-100 transition-all group-hover:scale-105 shrink-0">
+                      <span>View Now</span>
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </div>
                 </div>
               </Link>
             ))}
