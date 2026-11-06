@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const amountInRupees = Number(body.amount) || 39;
+    const amountInRupees = Number(body.amount) || 99;
     const amountInPaise = Math.round(amountInRupees * 100);
 
     // Dynamic receipt and notes based on order type (product purchase vs seller subscription)

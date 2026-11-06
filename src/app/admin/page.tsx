@@ -1674,7 +1674,7 @@ Best Regards,
                           title="View Payment Receipt"
                         >
                           <FileText className="w-3.5 h-3.5 text-purple-600" />
-                          <span>Receipt (₹39)</span>
+                          <span>Receipt (₹{store.meta.payment_amount || 99})</span>
                         </button>
                       )}
 
@@ -1923,7 +1923,7 @@ Best Regards,
                   <FileText className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base">Payment Receipt (₹39)</h3>
+                  <h3 className="font-bold text-base">Payment Receipt (₹{receiptModal.meta.payment_amount || 99})</h3>
                   <p className="text-xs text-muted-foreground">
                     {receiptModal.shop_name} • {receiptModal.meta.seller_name || receiptModal.profiles?.full_name || "Seller"}
                   </p>
@@ -1940,7 +1940,7 @@ Best Regards,
             <div className="space-y-2 text-xs">
               <div className="flex justify-between p-2.5 rounded-lg bg-secondary/50">
                 <span className="text-muted-foreground">Plan:</span>
-                <span className="font-bold text-foreground">{receiptModal.meta.subscription_plan || "₹39 - 3 Months"}</span>
+                <span className="font-bold text-foreground">{receiptModal.meta.subscription_plan || "₹99 - 3 Months"}</span>
               </div>
               {receiptModal.meta.payment_utr && (
                 <div className="flex justify-between p-2.5 rounded-lg bg-secondary/50">

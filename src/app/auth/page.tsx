@@ -138,7 +138,7 @@ export default function AuthPage({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: 39,
+          amount: 99,
           shopName: values.shopName.trim(),
           phone: cleanPhone,
         }),
@@ -155,7 +155,7 @@ export default function AuthPage({
         amount: orderData.amount,
         currency: orderData.currency || "INR",
         name: "AFRODER",
-        description: "Seller 3-Month Launch Pass (₹39)",
+        description: "Seller 3-Month Launch Pass (₹99)",
         image: "/logo-emblem.png",
         order_id: orderData.orderId,
         handler: async function (response: any) {
@@ -227,8 +227,8 @@ export default function AuthPage({
                 seller_email: optionalEmail || authEmail,
                 approval_status: "approved",
                 applied_at: new Date().toISOString(),
-                subscription_plan: "₹39 - 3 Months Promotional Access (Razorpay Paid)",
-                payment_amount: 39,
+                subscription_plan: "₹99 - 3 Months Promotional Access (Razorpay Paid)",
+                payment_amount: 99,
                 payment_id: response.razorpay_payment_id,
                 is_verified: true,
                 paid_at: new Date().toISOString(),
@@ -512,7 +512,7 @@ export default function AuthPage({
                       shopName: existing.store.shop_name,
                       contactNumber: cleanPhone,
                       email: existing.meta.seller_email || parsed.email || "",
-                      subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+                      subscriptionPlan: existing.meta.subscription_plan || "₹99 - 3 Months Promotional Access",
                     });
                   } else if (existing.meta.approval_status === "approved") {
                     setMode("signin");
@@ -604,7 +604,7 @@ export default function AuthPage({
           shopName: existing.store.shop_name,
           contactNumber: cleanPhone,
           email: existing.meta.seller_email || values.email || "",
-          subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+          subscriptionPlan: existing.meta.subscription_plan || "₹99 - 3 Months Promotional Access",
         });
         return;
       }
@@ -652,7 +652,7 @@ export default function AuthPage({
         shopName: existing.store.shop_name,
         contactNumber: clean,
         email: existing.meta.seller_email || "",
-        subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+        subscriptionPlan: existing.meta.subscription_plan || "₹99 - 3 Months Promotional Access",
       });
       return;
     }
@@ -754,7 +754,7 @@ export default function AuthPage({
                 shopName: existing.store.shop_name,
                 contactNumber: cleanPhone,
                 email: existing.meta.seller_email || optionalEmail || "",
-                subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+                subscriptionPlan: existing.meta.subscription_plan || "₹99 - 3 Months Promotional Access",
               });
               setIsLoading(false);
               return;
@@ -804,7 +804,7 @@ export default function AuthPage({
                 shopName: existing.store.shop_name,
                 contactNumber: cleanPhone,
                 email: existing.meta.seller_email || optionalEmail || "",
-                subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+                subscriptionPlan: existing.meta.subscription_plan || "₹99 - 3 Months Promotional Access",
               });
               setIsLoading(false);
               return;
@@ -831,7 +831,7 @@ export default function AuthPage({
                 shopName: existing.store.shop_name,
                 contactNumber: cleanPhone,
                 email: existing.meta.seller_email || optionalEmail || "",
-                subscriptionPlan: existing.meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+                subscriptionPlan: existing.meta.subscription_plan || "₹99 - 3 Months Promotional Access",
               });
               setIsLoading(false);
               return;
@@ -884,8 +884,8 @@ export default function AuthPage({
             seller_email: optionalEmail || authEmail,
             approval_status: "pending",
             applied_at: new Date().toISOString(),
-            subscription_plan: "₹39 - 3 Months Promotional Access",
-            payment_amount: 39,
+            subscription_plan: "₹99 - 3 Months Promotional Access",
+            payment_amount: 99,
             payment_receipt_url: finalReceiptUrl,
             payment_utr: utrNumber.trim() || undefined,
           });
@@ -919,7 +919,7 @@ export default function AuthPage({
             shopName: data.shopName || "Your Store",
             contactNumber: cleanPhone,
             email: optionalEmail || "",
-            subscriptionPlan: "₹39 - 3 Months Promotional Access",
+            subscriptionPlan: "₹99 - 3 Months Promotional Access",
             paymentReceiptUrl: finalReceiptUrl,
           });
           setIsLoading(false);
@@ -1068,7 +1068,7 @@ export default function AuthPage({
                 shopName: pendingStore.shop_name,
                 contactNumber: meta.contact_number || cleanPhone,
                 email: meta.seller_email || profile?.email || "",
-                subscriptionPlan: meta.subscription_plan || "₹39 - 3 Months Promotional Access",
+                subscriptionPlan: meta.subscription_plan || "₹99 - 3 Months Promotional Access",
               });
             }
             setIsLoading(false);
@@ -1138,7 +1138,7 @@ export default function AuthPage({
             ) : null}
             <div className="flex justify-between items-center text-xs text-muted-foreground border-b border-border/60 pb-2">
               <span>Subscription Plan</span>
-              <span className="font-bold text-emerald-600">₹39 / 3 Months (Receipt Attached ✓)</span>
+              <span className="font-bold text-emerald-600">₹99 / 3 Months (Receipt Attached ✓)</span>
             </div>
             <div className="flex justify-between items-center text-xs text-muted-foreground">
               <span>Expected Verification</span>
@@ -1148,7 +1148,7 @@ export default function AuthPage({
 
           <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 p-4 rounded-xl text-xs text-left leading-relaxed">
             <p className="font-semibold mb-1">⏳ Verification Notice:</p>
-            Your information and ₹39 subscription receipt are currently being verified by our web controller team. Please wait — within the next 24 hours we will review your shop and contact you on WhatsApp / Phone. Once approved, you will be able to log in to your dashboard and begin selling.
+            Your information and ₹99 subscription receipt are currently being verified by our web controller team. Please wait — within the next 24 hours we will review your shop and contact you on WhatsApp / Phone. Once approved, you will be able to log in to your dashboard and begin selling.
           </div>
 
           {/* Support / Help Query Section */}
@@ -1503,7 +1503,7 @@ export default function AuthPage({
                     disabled={isLoading}
                     className="w-full h-12 text-base font-semibold tracking-wide mt-2 flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white"
                   >
-                    <span>Next: Pay ₹39 & Verify</span>
+                    <span>Next: Pay ₹99 & Verify</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
@@ -1521,7 +1521,7 @@ export default function AuthPage({
               </div>
             )}
 
-          {/* STEP 2: ₹39 Subscription Payment (Only for Seller Signup) */}
+          {/* STEP 2: ₹99 Subscription Payment (Only for Seller Signup) */}
           {role === "seller" && mode === "signup" && sellerStep === "payment" && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -1533,7 +1533,7 @@ export default function AuthPage({
               <div className="flex items-center justify-between pb-2 border-b border-border text-xs">
                 <span className="font-semibold text-muted-foreground">Step 2 of 2: Seller Launch Pass</span>
                 <span className="font-mono text-[11px] font-semibold text-zinc-300 bg-secondary/80 px-2.5 py-0.5 rounded-full border border-border">
-                  ₹39 / 90 Days
+                  ₹99 / 90 Days
                 </span>
               </div>
 
@@ -1551,8 +1551,8 @@ export default function AuthPage({
 
                     <div>
                       <div className="flex items-baseline space-x-2">
-                        <span className="text-4xl font-extrabold tracking-tight text-white">₹39</span>
-                        <span className="text-xs text-zinc-400">for 3 months (only ₹13/month)</span>
+                        <span className="text-4xl font-extrabold tracking-tight text-white">₹99</span>
+                        <span className="text-xs text-zinc-400">for 3 months (only ₹33/month)</span>
                       </div>
                       <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
                         Instant seller onboarding, verified merchant badge, full store catalog, and direct customer WhatsApp checkout.
@@ -1589,7 +1589,7 @@ export default function AuthPage({
                         ) : (
                           <>
                             <CreditCard className="w-4 h-4 text-black" />
-                            <span>Pay ₹39 Online (Instant Approval)</span>
+                            <span>Pay ₹99 Online (Instant Approval)</span>
                             <ArrowRight className="w-4 h-4 text-zinc-800 ml-1" />
                           </>
                         )}
@@ -1645,7 +1645,7 @@ export default function AuthPage({
                   <div className="bg-secondary/40 border border-border rounded-2xl p-5 text-center space-y-3">
                     <div className="flex items-center justify-center space-x-1.5 text-xs font-semibold text-foreground">
                       <QrCode className="w-4 h-4 text-foreground" />
-                      <span>Scan QR Code to Pay ₹39</span>
+                      <span>Scan QR Code to Pay ₹99</span>
                     </div>
 
                     {/* QR Code Container */}
@@ -1653,7 +1653,7 @@ export default function AuthPage({
                       <div className="relative w-48 h-48 md:w-52 md:h-52">
                         <img
                           src="/seller-payment-qr.png"
-                          alt="UPI QR Code for ₹39"
+                          alt="UPI QR Code for ₹99"
                           className="w-full h-full object-contain rounded-lg"
                         />
                       </div>
@@ -1680,11 +1680,11 @@ export default function AuthPage({
                     {/* Direct UPI Intent Link for Mobile */}
                     <div className="pt-1">
                       <a
-                        href="upi://pay?pa=9671356786@axl&pn=SARMINA&am=39&cu=INR&tn=AFRODER%20Seller%20Verification"
+                        href="upi://pay?pa=9671356786@axl&pn=SARMINA&am=99&cu=INR&tn=AFRODER%20Seller%20Verification"
                         className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors"
                       >
                         <CreditCard className="w-3.5 h-3.5" />
-                        <span>Pay ₹39 Directly via UPI App</span>
+                        <span>Pay ₹99 Directly via UPI App</span>
                       </a>
                     </div>
                   </div>
