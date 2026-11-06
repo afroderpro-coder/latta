@@ -74,7 +74,9 @@ export function Footer() {
             &copy; {new Date().getFullYear()} AFRODER Marketplace. All rights reserved.
           </p>
           <div className="flex space-x-4 mt-4 md:mt-0 text-sm text-muted-foreground">
-            <span className="flex items-center"><Mail className="mr-2 h-4 w-4"/> support@luxemarketplace.com</span>
+            <a href="mailto:support@afroder.shop" className="flex items-center hover:text-foreground transition-colors">
+              <Mail className="mr-2 h-4 w-4"/> support@afroder.shop
+            </a>
           </div>
         </div>
       </div>

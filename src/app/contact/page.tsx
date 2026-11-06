@@ -169,10 +169,10 @@ export default function ContactPage() {
 
         <div className="text-center space-y-3 pt-6 text-sm text-muted-foreground border-t border-border/60">
           <div className="flex flex-wrap items-center justify-center gap-6">
-            <span className="flex items-center space-x-2">
+            <a href="mailto:support@afroder.shop" className="flex items-center space-x-2 hover:text-primary transition-colors">
               <Mail className="w-4 h-4 text-primary" />
-              <span>support@afroder.com</span>
-            </span>
+              <span>support@afroder.shop</span>
+            </a>
             <a
               href={`https://wa.me/${WHATSAPP_CONTACT_NUMBER}`}
               target="_blank"
