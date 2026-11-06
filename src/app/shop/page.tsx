@@ -209,6 +209,7 @@ export default async function ShopPage() {
                             title: product.title,
                             price: product.price,
                             image_urls: product.image_urls,
+                            sizes: product.sizes,
                           }}
                         />
                       </div>

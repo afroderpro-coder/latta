@@ -1,13 +1,29 @@
 "use client";
 
 import { useEffect, useState, useRef, use } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
-import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X } from "lucide-react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
+
+function getApparelType(title?: string, description?: string, category?: string): string {
+  const text = `${title || ""} ${description || ""} ${category || ""}`.toLowerCase();
+  if (/\b(polo|shirt|shirts)\b/.test(text)) return "shirt";
+  if (/\b(t-?shirt|tee|tees)\b/.test(text)) return "T-shirt";
+  if (/\b(pant|pants|trouser|trousers)\b/.test(text)) return "pants";
+  if (/\b(jean|jeans|denim)\b/.test(text)) return "jeans";
+  if (/\b(cargo|cargos)\b/.test(text)) return "cargos";
+  if (/\b(short|shorts)\b/.test(text)) return "shorts";
+  if (/\b(hoodie|hoodies|sweatshirt)\b/.test(text)) return "hoodie";
+  if (/\b(jacket|jackets|coat)\b/.test(text)) return "jacket";
+  if (/\b(kurta|kurti)\b/.test(text)) return "kurta";
+  if (/\b(shoe|shoes|sneaker|sneakers)\b/.test(text)) return "shoes";
+  return "item";
+}
 
 const fallbackRelatedProducts = [
   {
@@ -42,19 +58,29 @@ const fallbackRelatedProducts = [
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
+  const router = useRouter();
   const [product, setProduct] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [sizeError, setSizeError] = useState(false);
+  const [showSizePopup, setShowSizePopup] = useState(false);
+  const [shakeKey, setShakeKey] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sizeSectionRef = useRef<HTMLDivElement>(null);
+  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
     // Reset page view when product ID changes
     window.scrollTo({ top: 0, behavior: "smooth" });
     setSelectedSize(null);
+    setSizeError(false);
+    setShowSizePopup(false);
+    if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+    setShakeKey(0);
     setSelectedImageIndex(0);
     setIsLoading(true);
 
@@ -116,12 +142,28 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const images: string[] = Array.isArray(product.image_urls) ? product.image_urls : [];
+  const apparelType = getApparelType(product.title, product.description, product.category);
+  const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+
+  const validateSizeSelection = (): boolean => {
+    if (hasSizes && !selectedSize) {
+      setSizeError(true);
+      setShowSizePopup(true);
+      setShakeKey((prev) => prev + 1);
+
+      if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = setTimeout(() => {
+        setShowSizePopup(false);
+      }, 4000);
+
+      sizeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return false;
+    }
+    return true;
+  };
 
   const handleAddToCart = () => {
-    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      alert("Please select a size first.");
-      return;
-    }
+    if (!validateSizeSelection()) return;
 
     addItem({
       id: selectedSize ? `${product.id}-${selectedSize}` : product.id,
@@ -140,8 +182,67 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     }, 1800);
   };
 
+  const handleBuyNow = () => {
+    if (!validateSizeSelection()) return;
+
+    addItem({
+      id: selectedSize ? `${product.id}-${selectedSize}` : product.id,
+      productId: product.id,
+      storeId: product.store_id,
+      name: product.title,
+      price: product.price,
+      quantity: 1,
+      imageUrl: images[0] || "",
+      variant: selectedSize ? { size: selectedSize, color: "" } : undefined,
+    });
+
+    router.push("/cart");
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="container mx-auto px-4 py-8 max-w-6xl relative">
+      {/* ── Beautiful Top Popup Notification for Missing Size ── */}
+      <AnimatePresence>
+        {showSizePopup && (
+          <motion.div
+            initial={{ opacity: 0, y: -40, x: "-50%", scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
+            exit={{ opacity: 0, y: -30, x: "-50%", scale: 0.94 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="fixed top-5 left-1/2 z-50 flex items-center gap-2.5 sm:gap-3 bg-zinc-950/95 text-white border border-zinc-700/80 px-4 py-2.5 rounded-full shadow-2xl backdrop-blur-md max-w-[92vw] sm:max-w-md pointer-events-auto"
+          >
+            <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-3.5 h-3.5" />
+            </div>
+
+            <p className="text-xs sm:text-sm font-medium tracking-tight truncate">
+              Please select your size of{" "}
+              <span className="font-bold text-amber-300 capitalize">{apparelType}</span> to proceed
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowSizePopup(false);
+                sizeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline underline-offset-2 shrink-0 cursor-pointer ml-1"
+            >
+              Pick Size
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSizePopup(false)}
+              className="text-zinc-400 hover:text-white p-1 rounded-full transition-colors cursor-pointer shrink-0 ml-1"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Link href="/shop" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-8">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to shopping
       </Link>
@@ -230,47 +331,129 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <p>{product.description || "No description provided."}</p>
           </div>
 
-          {product.sizes && product.sizes.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-sm font-medium mb-3">Select Size</h3>
-              <div className="flex flex-wrap gap-2">
+          {hasSizes && (
+            <motion.div
+              ref={sizeSectionRef}
+              key={shakeKey}
+              animate={sizeError ? { x: [-8, 8, -6, 6, -3, 3, 0] } : {}}
+              transition={{ duration: 0.4 }}
+              className={`mb-8 p-4 rounded-2xl border transition-all duration-300 ${
+                sizeError
+                  ? "bg-red-500/10 border-red-500/50 ring-2 ring-red-500/30"
+                  : "bg-secondary/20 border-border/60"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold tracking-tight text-foreground">
+                    Select Size
+                  </h3>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (Required)
+                  </span>
+                </div>
+                {selectedSize ? (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    Selected: {selectedSize}
+                  </span>
+                ) : sizeError ? (
+                  <span className="text-xs font-bold text-red-500 flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="w-3.5 h-3.5" /> Size required
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2.5">
                 {product.sizes.map((size: string) => (
                   <button
                     key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`h-10 min-w-[3rem] px-4 rounded-md border text-sm font-medium transition-colors ${
+                    type="button"
+                    onClick={() => {
+                      setSelectedSize(size);
+                      setSizeError(false);
+                      setShowSizePopup(false);
+                      if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+                    }}
+                    className={`h-11 min-w-[3.5rem] px-4 rounded-xl border text-sm font-bold transition-all cursor-pointer ${
                       selectedSize === size
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background hover:bg-muted"
+                        ? "bg-foreground text-background border-foreground shadow-md scale-105"
+                        : sizeError
+                        ? "bg-background border-red-500/40 text-foreground hover:border-red-500 hover:bg-red-500/10"
+                        : "bg-background border-border text-foreground hover:border-foreground/50 hover:bg-secondary/60"
                     }`}
                   >
                     {size}
                   </button>
                 ))}
               </div>
-            </div>
+
+              {sizeError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    Please select your size of {apparelType} ({product.sizes.join(", ")}) before adding to cart or buying!
+                  </span>
+                </motion.div>
+              )}
+            </motion.div>
           )}
 
-          <div className="mt-auto pt-8 border-t border-border">
-            <Button
-              size="lg"
-              className={`w-full h-14 text-lg font-bold transition-all duration-200 ${
-                isAdded
-                  ? "bg-[#e6f7ec] hover:bg-[#d4f3dd] text-[#14532d] border-2 border-[#16a34a]"
-                  : ""
-              }`}
-              onClick={handleAddToCart}
-            >
-              {isAdded ? (
-                <>
-                  <Check className="mr-2 h-6 w-6 text-[#16a34a]" /> Added to Cart!
-                </>
-              ) : (
-                <>
-                  <ShoppingBag className="mr-2 h-5 w-5" /> Add to Cart
-                </>
-              )}
-            </Button>
+          <div className="mt-auto pt-6 border-t border-border space-y-3">
+            {/* Inline warning alert above action buttons if size missing */}
+            {sizeError && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Please select your size of {apparelType} above.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => sizeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                  className="underline underline-offset-2 font-bold cursor-pointer hover:opacity-80"
+                >
+                  Select Size ↑
+                </button>
+              </motion.div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Button
+                size="lg"
+                variant="outline"
+                className={`w-full h-14 text-base font-bold transition-all duration-200 border-2 cursor-pointer ${
+                  isAdded
+                    ? "bg-[#e6f7ec] hover:bg-[#d4f3dd] text-[#14532d] border-[#16a34a]"
+                    : "border-border hover:border-foreground/40 bg-background text-foreground"
+                }`}
+                onClick={handleAddToCart}
+              >
+                {isAdded ? (
+                  <>
+                    <Check className="mr-2 h-5 w-5 text-[#16a34a]" /> Added to Cart!
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="mr-2 h-5 w-5" /> Add to Cart
+                  </>
+                )}
+              </Button>
+
+              <Button
+                size="lg"
+                className="w-full h-14 text-base font-bold bg-foreground text-background hover:bg-foreground/90 transition-all duration-200 shadow-md cursor-pointer"
+                onClick={handleBuyNow}
+              >
+                <Zap className="mr-2 h-5 w-5 fill-current" /> Buy Now
+              </Button>
+            </div>
           </div>
         </motion.div>
       </div>

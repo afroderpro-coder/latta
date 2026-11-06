@@ -12,6 +12,7 @@ interface AddToCartButtonProps {
     price: number;
     image_urls?: string[];
     store_id?: string;
+    sizes?: string[];
   };
 }
 
@@ -19,10 +20,16 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
   const { addItem } = useCartStore();
   const router = useRouter();
   const [isAdded, setIsAdded] = useState(false);
+  const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (hasSizes) {
+      router.push(`/product/${product.id}`);
+      return;
+    }
 
     addItem({
       id: product.id,
@@ -43,6 +50,12 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
   const handleBuyNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (hasSizes) {
+      router.push(`/product/${product.id}`);
+      return;
+    }
+
     handleAddToCart(e);
     router.push("/cart");
   };
@@ -58,7 +71,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
             ? "border-[#16a34a] bg-[#e6f7ec] text-[#14532d] shadow-xs"
             : "border-foreground/80 bg-background text-foreground hover:bg-foreground hover:text-background hover:border-foreground shadow-2xs"
         }`}
-        title="Add to Cart"
+        title={hasSizes ? "Select Size" : "Add to Cart"}
       >
         {isAdded ? (
           <>
@@ -68,8 +81,8 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
         ) : (
           <>
             <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="hidden min-[360px]:inline truncate">Add to Cart</span>
-            <span className="min-[360px]:hidden truncate">Add</span>
+            <span className="hidden min-[360px]:inline truncate">{hasSizes ? "Select Size" : "Add to Cart"}</span>
+            <span className="min-[360px]:hidden truncate">{hasSizes ? "Size" : "Add"}</span>
           </>
         )}
       </button>

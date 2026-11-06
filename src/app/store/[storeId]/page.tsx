@@ -403,6 +403,7 @@ export default function StorefrontPage({ params }: { params: Promise<{ storeId: 
                               price: product.price,
                               image_urls: product.image_urls,
                               store_id: store.id,
+                              sizes: product.sizes,
                             }}
                           />
                         </div>
