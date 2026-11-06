@@ -130,19 +130,14 @@ export default async function HomePage() {
                   <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-300" />
                 </div>
 
-                {/* Title aside and View Button */}
+                {/* Title aside and View Now Button */}
                 <div className="flex items-center justify-between gap-3 px-1">
-                  <div className="min-w-0 flex-1 text-left">
-                    <h4 className="font-semibold text-base tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
-                      {product.title}
-                    </h4>
-                    <p className="text-sm font-bold text-foreground">
-                      ₹{product.price}
-                    </p>
-                  </div>
+                  <h4 className="min-w-0 flex-1 text-left font-semibold text-base tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
+                    {product.title}
+                  </h4>
 
                   <span className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-foreground text-background text-xs font-semibold tracking-wide group-hover:bg-foreground/85 transition-all shrink-0 shadow-2xs">
-                    <span>View</span>
+                    <span>View Now</span>
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>
                 </div>
