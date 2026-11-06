@@ -113,7 +113,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
             {products.map((product) => (
               <Link href={`/product/${product.id}`} key={product.id} className="group block">
-                {/* Compact Image Container with Glassy Overlay */}
+                {/* Compact Image Container */}
                 <div className="aspect-square bg-secondary/60 overflow-hidden mb-3 relative border border-border/80 rounded-2xl shadow-xs group-hover:shadow-md transition-all duration-300">
                   {product.image_urls?.[0] ? (
                     <img 
@@ -127,22 +127,13 @@ export default async function HomePage() {
                     </div>
                   )}
 
-                  {/* Gradient shadow for text readability */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-
-                  {/* Glassy Title (Left Bottom inside image) */}
-                  <div className="absolute bottom-3 left-3 z-10 pointer-events-none max-w-[85%]">
-                    <div className="bg-black/60 dark:bg-black/75 backdrop-blur-md border border-white/20 text-white px-3.5 py-1.5 rounded-xl shadow-lg">
-                      <h4 className="font-semibold text-xs sm:text-sm tracking-tight truncate">
-                        {product.title}
-                      </h4>
-                    </div>
-                  </div>
+                  {/* Subtle hover overlay */}
+                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-300" />
                 </div>
 
-                {/* View Now Button (Outside below image like before) */}
+                {/* Glassy View Now Button (at its place outside) */}
                 <div className="flex items-center justify-end px-1">
-                  <span className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold tracking-wide group-hover:bg-foreground/85 transition-all shadow-2xs">
+                  <span className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-black/75 dark:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold tracking-wide shadow-md hover:bg-black/90 group-hover:scale-105 transition-all cursor-pointer">
                     <span>View Now</span>
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>
