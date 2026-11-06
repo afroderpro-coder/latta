@@ -2,7 +2,6 @@
 
 import { useCartStore } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -23,18 +22,20 @@ import {
   Sparkles,
   ShieldCheck,
   Loader2,
-  Lock
+  Lock,
+  Truck
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { parseStoreBio, serializeStoreBio, StoreOrder } from "@/utils/storeMetadata";
+import { GoogleLoginPromptModal } from "@/components/auth/GoogleLoginPromptModal";
+// Order saving is now handled server-side via /api/orders/save
 
 const WHATSAPP_ORDER_NUMBER = "919671016500";
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, clearCart } = useCartStore();
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const router = useRouter();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(items.map(i => i.id)));
@@ -42,6 +43,7 @@ export default function CartPage() {
   const [isRazorpayLoading, setIsRazorpayLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "whatsapp">("razorpay");
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placedOrderInfo, setPlacedOrderInfo] = useState<{
     id: string;
@@ -143,7 +145,7 @@ export default function CartPage() {
     });
   };
 
-  // Helper: Persist order into each seller's store metadata so it shows in their dashboard
+  // Helper: Persist order into each seller's store metadata via server API (bypasses RLS)
   const saveOrderToStores = async ({
     orderRef,
     paymentMethod,
@@ -157,77 +159,55 @@ export default function CartPage() {
     paymentId?: string;
     razorpayOrderId?: string;
   }) => {
-    const storeMap: Record<string, { shop_name: string; bio?: string }> = {};
-    const storeIds = Array.from(new Set(selectedItems.map((i) => i.storeId).filter(Boolean)));
-    if (storeIds.length > 0) {
-      try {
-        const { data: stores } = await supabase
-          .from("stores")
-          .select("id, shop_name, bio")
-          .in("id", storeIds);
-        stores?.forEach((s) => {
-          storeMap[s.id] = { shop_name: s.shop_name, bio: s.bio };
-        });
-      } catch (err) {
-        console.error("Could not fetch store names:", err);
-      }
-    }
-
-    const itemsByStore: Record<string, typeof selectedItems> = {};
+    // Group items by store
+    const itemsByStore: Record<string, { items: { product_id: string; product_title: string; size?: string; quantity: number; price: number; image_url?: string }[]; storeTotal: number }> = {};
     selectedItems.forEach((item) => {
       const sId = item.storeId || "unknown";
-      if (!itemsByStore[sId]) itemsByStore[sId] = [];
-      itemsByStore[sId].push(item);
+      if (sId === "unknown") return;
+      if (!itemsByStore[sId]) itemsByStore[sId] = { items: [], storeTotal: 0 };
+      itemsByStore[sId].items.push({
+        product_id: item.productId,
+        product_title: item.name,
+        size: item.variant?.size,
+        quantity: item.quantity,
+        price: item.price,
+        image_url: item.imageUrl,
+      });
+      itemsByStore[sId].storeTotal += item.price * item.quantity;
     });
 
-    for (const [sId, storeItems] of Object.entries(itemsByStore)) {
-      if (sId && sId !== "unknown") {
-        try {
-          const currentStore = storeMap[sId];
-          if (currentStore) {
-            const storeMeta = parseStoreBio(currentStore.bio);
-            const storeTotal = storeItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    let storeMap: Record<string, { shop_name: string }> = {};
 
-            const storeOrder: StoreOrder = {
-              id: orderRef,
-              created_at: new Date().toISOString(),
-              customer_name: customerName.trim() || profile?.full_name || "Guest Customer",
-              customer_phone: customerPhone.trim() || "Not provided",
-              delivery_address: deliveryAddress.trim() || "Not provided",
-              customer_notes: customerNotes.trim() || "",
-              items: storeItems.map((i) => ({
-                product_id: i.productId,
-                product_title: i.name,
-                size: i.variant?.size,
-                quantity: i.quantity,
-                price: i.price,
-                image_url: i.imageUrl,
-              })),
-              total_amount: storeTotal,
-              status: paymentStatus === "paid" ? "processing" : "pending",
-              payment_method: paymentMethod,
-              payment_status: paymentStatus,
-              payment_id: paymentId,
-              razorpay_order_id: razorpayOrderId,
-              paid_at: paymentStatus === "paid" ? new Date().toISOString() : undefined,
-            };
+    try {
+      const res = await fetch("/api/orders/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderRef,
+          paymentMethod,
+          paymentStatus,
+          paymentId,
+          razorpayOrderId,
+          customerName: customerName.trim() || profile?.full_name || "Guest Customer",
+          customerPhone: customerPhone.trim() || "Not provided",
+          customerEmail: profile?.email || user?.email || undefined,
+          deliveryAddress: deliveryAddress.trim() || "Not provided",
+          customerNotes: customerNotes.trim() || "",
+          itemsByStore,
+        }),
+      });
 
-            const updatedOrders = [storeOrder, ...(storeMeta.orders || [])];
-            const updatedBio = serializeStoreBio({
-              ...storeMeta,
-              orders: updatedOrders,
-            });
-
-            await supabase
-              .from("stores")
-              .update({ bio: updatedBio })
-              .eq("id", sId);
-          }
-        } catch (persistErr) {
-          console.error("Error saving order to store metadata:", persistErr);
-        }
+      const data = await res.json();
+      if (data.storeMap) {
+        storeMap = data.storeMap;
       }
+      if (data.errors && data.errors.length > 0) {
+        console.error("Order save errors:", data.errors);
+      }
+    } catch (err) {
+      console.error("Failed to save order via API:", err);
     }
+
     return storeMap;
   };
 
@@ -435,6 +415,8 @@ export default function CartPage() {
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `💰 *TOTAL AMOUNT: ₹${selectedTotal.toFixed(2)}*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🚚 *ESTIMATED DELIVERY:* 5-7 Business Days\n` +
+        `🔍 *LIVE TRACKING:* ${baseUrl}/profile\n\n` +
         `📍 Please confirm my order availability and dispatch instructions!`;
 
       const whatsappUrl = `https://wa.me/${WHATSAPP_ORDER_NUMBER}?text=${encodeURIComponent(message)}`;
@@ -513,12 +495,25 @@ export default function CartPage() {
               <span>Total Paid:</span>
               <span className="text-primary text-base">₹{placedOrderInfo.total.toFixed(2)}</span>
             </div>
+            <div className="bg-secondary/40 rounded-xl p-3 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Truck className="w-4 h-4 text-primary" />
+                <span>Estimated Delivery:</span>
+              </span>
+              <span className="font-semibold text-foreground">5-7 Business Days</span>
+            </div>
           </div>
         )}
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link href="/profile" className="w-full sm:w-auto">
+            <Button size="lg" className="w-full sm:w-auto bg-foreground text-background hover:bg-foreground/90 font-bold">
+              <Truck className="h-4 w-4 mr-2" />
+              Track Delivery & Orders
+            </Button>
+          </Link>
           <Link href="/shop" className="w-full sm:w-auto">
-            <Button size="lg" className="w-full sm:w-auto">Continue Shopping</Button>
+            <Button size="lg" variant="outline" className="w-full sm:w-auto">Continue Shopping</Button>
           </Link>
           <a
             href={`https://wa.me/${WHATSAPP_ORDER_NUMBER}`}
@@ -527,7 +522,7 @@ export default function CartPage() {
             className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20ba5a] text-white px-6 py-3 rounded-md font-semibold text-sm transition-colors w-full sm:w-auto justify-center"
           >
             <MessageCircle className="h-4 w-4" />
-            <span>Chat with Sales Desk</span>
+            <span>Chat on WhatsApp</span>
           </a>
         </div>
       </div>
@@ -715,7 +710,13 @@ export default function CartPage() {
               {/* Primary Checkout Button */}
               <button
                 type="button"
-                onClick={() => setShowCheckoutModal(true)}
+                onClick={() => {
+                  if (!user) {
+                    setShowAuthModal(true);
+                    return;
+                  }
+                  setShowCheckoutModal(true);
+                }}
                 disabled={selectedItems.length === 0}
                 className="w-full mt-2 flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 active:scale-[0.99] py-3.5 px-4 rounded-xl font-bold text-base shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
@@ -981,6 +982,14 @@ export default function CartPage() {
           </div>
         </div>
       )}
+
+      {/* ── Google Auth Required Modal for Checkout ── */}
+      <GoogleLoginPromptModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionText="proceed with checkout and save your order"
+        redirectUrl="/cart"
+      />
     </div>
   );
 }

@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
+import { GoogleLoginPromptModal } from "@/components/auth/GoogleLoginPromptModal";
 
 function getApparelType(title?: string, description?: string, category?: string): string {
   const text = `${title || ""} ${description || ""} ${category || ""}`.toLowerCase();
@@ -72,6 +74,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const sizeSectionRef = useRef<HTMLDivElement>(null);
   const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
   const addItem = useCartStore((state) => state.addItem);
+  const { user } = useAuthStore();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authActionText, setAuthActionText] = useState("add this product to your cart");
 
   useEffect(() => {
     // Reset page view when product ID changes
@@ -163,6 +168,12 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleAddToCart = () => {
+    if (!user) {
+      setAuthActionText("add this product to your cart");
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!validateSizeSelection()) return;
 
     addItem({
@@ -183,6 +194,12 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleBuyNow = () => {
+    if (!user) {
+      setAuthActionText("buy this product");
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!validateSizeSelection()) return;
 
     addItem({
@@ -543,6 +560,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </section>
       )}
+
+      {/* ── Google Auth Required Modal ── */}
+      <GoogleLoginPromptModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionText={authActionText}
+        redirectUrl={`/product/${product?.id || unwrappedParams.id}`}
+      />
     </div>
   );
 }

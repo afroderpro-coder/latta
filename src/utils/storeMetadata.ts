@@ -20,16 +20,21 @@ export interface StoreOrder {
   created_at: string;
   customer_name: string;
   customer_phone: string;
+  customer_email?: string;
   delivery_address: string;
   customer_notes?: string;
   items: StoreOrderItem[];
   total_amount: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered" | "cancelled";
+  estimated_delivery?: string; // e.g. "2026-11-10" or "Nov 10, 2026"
+  tracking_number?: string;
+  courier_name?: string;
   payment_method?: "razorpay" | "whatsapp";
   payment_status?: "paid" | "pending";
   payment_id?: string;
   razorpay_order_id?: string;
   paid_at?: string;
+  completed_at?: string;
 }
 
 export interface StoreMetadata {

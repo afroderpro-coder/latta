@@ -95,6 +95,7 @@ export default function SuperAdminPage() {
   const [ordersList, setOrdersList] = useState<AdminOrderRecord[]>([]);
   const [orderFilterStatus, setOrderFilterStatus] = useState<string>("all");
   const [orderPaymentFilter, setOrderPaymentFilter] = useState<"all" | "razorpay" | "whatsapp">("all");
+  const [orderViewTab, setOrderViewTab] = useState<"active" | "completed" | "all">("active");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "products" | "orders">("pending");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -531,41 +532,58 @@ Best Regards,
   };
 
   // ── Order Management Handlers ──
-  const updateAdminOrderStatus = async (orderId: string, storeId: string, newStatus: StoreOrder["status"]) => {
+  const updateAdminOrder = async ({
+    orderId,
+    storeId,
+    newStatus,
+    estimatedDelivery,
+    courierName,
+    trackingNumber,
+  }: {
+    orderId: string;
+    storeId: string;
+    newStatus?: StoreOrder["status"];
+    estimatedDelivery?: string;
+    courierName?: string;
+    trackingNumber?: string;
+  }) => {
     try {
       setActionInProgress(`order_${orderId}`);
-      const store = stores.find((s) => s.id === storeId);
-      if (!store) throw new Error("Store not found");
 
-      const meta = parseStoreBio(store.bio);
-      const updatedOrders = (meta.orders || []).map((o) =>
-        o.id === orderId ? { ...o, status: newStatus } : o
-      );
-
-      const updatedBio = serializeStoreBio({
-        ...meta,
-        orders: updatedOrders,
+      const res = await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          storeId,
+          status: newStatus,
+          estimatedDelivery,
+          courierName,
+          trackingNumber,
+        }),
       });
 
-      const { error } = await supabase
-        .from("stores")
-        .update({ bio: updatedBio })
-        .eq("id", storeId);
-
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update order");
+      }
 
       setOrdersList((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-      );
-      setStores((prev) =>
-        prev.map((s) =>
-          s.id === storeId
-            ? { ...s, bio: updatedBio, meta: { ...meta, orders: updatedOrders } }
-            : s
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                ...(newStatus ? { status: newStatus } : {}),
+                ...(estimatedDelivery !== undefined ? { estimated_delivery: estimatedDelivery } : {}),
+                ...(courierName !== undefined ? { courier_name: courierName } : {}),
+                ...(trackingNumber !== undefined ? { tracking_number: trackingNumber } : {}),
+                ...(newStatus === "delivered" ? { completed_at: new Date().toISOString() } : {}),
+              }
+            : o
         )
       );
     } catch (err: any) {
-      alert("Failed to update status: " + (err.message || "Please try again"));
+      alert("Failed to update order: " + (err.message || "Please try again"));
     } finally {
       setActionInProgress(null);
     }
@@ -579,8 +597,18 @@ Best Regards,
   const totalRevenue = ordersList.reduce((acc, o) => acc + (o.total_amount || 0), 0);
   const razorpayOrdersCount = ordersList.filter((o) => o.payment_method === "razorpay").length;
   const whatsappOrdersCount = ordersList.filter((o) => o.payment_method === "whatsapp" || !o.payment_method).length;
+  const activeOrdersCount = ordersList.filter((o) => o.status !== "delivered" && o.status !== "cancelled").length;
+  const completedOrdersCount = ordersList.filter((o) => o.status === "delivered").length;
 
   const filteredOrders = ordersList.filter((o) => {
+    // Active vs Completed tabs
+    if (orderViewTab === "active" && (o.status === "delivered" || o.status === "cancelled")) {
+      return false;
+    }
+    if (orderViewTab === "completed" && o.status !== "delivered") {
+      return false;
+    }
+
     // Payment filter
     if (orderPaymentFilter === "razorpay" && o.payment_method !== "razorpay") return false;
     if (orderPaymentFilter === "whatsapp" && o.payment_method === "razorpay") return false;
@@ -1096,6 +1124,71 @@ Best Regards,
             </div>
           ) : (
             <div className="space-y-5">
+              {/* Lifecycle Sub-Tabs: Active Orders vs Completed Orders */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border shadow-xs">
+                <div className="flex p-1 bg-secondary/80 rounded-xl border border-border w-full sm:w-auto">
+                  <button
+                    onClick={() => {
+                      setOrderViewTab("active");
+                      setOrderFilterStatus("all");
+                    }}
+                    className={`flex-1 sm:flex-none py-2 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      orderViewTab === "active"
+                        ? "bg-background shadow-xs text-foreground font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Active Orders ({activeOrdersCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setOrderViewTab("completed");
+                      setOrderFilterStatus("all");
+                    }}
+                    className={`flex-1 sm:flex-none py-2 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      orderViewTab === "completed"
+                        ? "bg-background shadow-xs text-emerald-600 font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Completed Orders ({completedOrdersCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setOrderViewTab("all");
+                      setOrderFilterStatus("all");
+                    }}
+                    className={`flex-1 sm:flex-none py-2 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      orderViewTab === "all"
+                        ? "bg-background shadow-xs text-foreground font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>All History ({ordersList.length})</span>
+                  </button>
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  {orderViewTab === "active" && (
+                    <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+                      <Truck className="w-3.5 h-3.5" /> Showing active orders being processed & dispatched
+                    </span>
+                  )}
+                  {orderViewTab === "completed" && (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Successfully delivered and archived orders
+                    </span>
+                  )}
+                  {orderViewTab === "all" && (
+                    <span>Complete order history across all sellers</span>
+                  )}
+                </div>
+              </div>
+
               {/* Filter Pills Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/30 p-3 rounded-2xl border border-border">
                 {/* Payment Filter */}
@@ -1138,17 +1231,25 @@ Best Regards,
                 {/* Status Filter */}
                 <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
                   <span className="text-muted-foreground font-semibold px-2">Status:</span>
-                  {["all", "pending", "processing", "shipped", "delivered", "cancelled"].map((st) => (
+                  {[
+                    { id: "all", label: "All" },
+                    { id: "pending", label: "Pending" },
+                    { id: "processing", label: "Processing" },
+                    { id: "shipped", label: "Shipped" },
+                    { id: "out_for_delivery", label: "Out for Delivery" },
+                    { id: "delivered", label: "Delivered" },
+                    { id: "cancelled", label: "Cancelled" },
+                  ].map((st) => (
                     <button
-                      key={st}
-                      onClick={() => setOrderFilterStatus(st)}
-                      className={`px-2.5 py-1 rounded-lg font-medium capitalize transition-all cursor-pointer ${
-                        orderFilterStatus === st
+                      key={st.id}
+                      onClick={() => setOrderFilterStatus(st.id)}
+                      className={`px-2.5 py-1 rounded-lg font-medium capitalize transition-all cursor-pointer whitespace-nowrap ${
+                        orderFilterStatus === st.id
                           ? "bg-primary text-primary-foreground font-bold shadow-xs"
                           : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
-                      {st}
+                      {st.label}
                     </button>
                   ))}
                 </div>
@@ -1230,14 +1331,21 @@ Best Regards,
                             <div className="flex items-center gap-1.5">
                               <select
                                 value={order.status || "pending"}
-                                onChange={(e) => updateAdminOrderStatus(order.id, order.storeId, e.target.value as any)}
+                                onChange={(e) =>
+                                  updateAdminOrder({
+                                    orderId: order.id,
+                                    storeId: order.storeId,
+                                    newStatus: e.target.value as any,
+                                  })
+                                }
                                 disabled={isUpdating}
                                 className="text-xs font-semibold bg-secondary/80 hover:bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-foreground cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
                               >
                                 <option value="pending">Status: Pending</option>
                                 <option value="processing">Status: Processing</option>
                                 <option value="shipped">Status: Shipped</option>
-                                <option value="delivered">Status: Delivered</option>
+                                <option value="out_for_delivery">Status: Out for Delivery</option>
+                                <option value="delivered">Status: Delivered (Completed)</option>
                                 <option value="cancelled">Status: Cancelled</option>
                               </select>
                               {isUpdating && <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />}
@@ -1316,6 +1424,68 @@ Best Regards,
                                 </span>
                               </Link>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Delivery Schedule & Tracking Controller */}
+                        <div className="p-3.5 rounded-xl bg-secondary/30 border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground flex items-center gap-1.5">
+                              <Truck className="w-3.5 h-3.5 text-primary" />
+                              <span>Manage Delivery Date:</span>
+                            </span>
+                            <input
+                              type="date"
+                              value={order.estimated_delivery ? order.estimated_delivery.split("T")[0] : ""}
+                              onChange={(e) => {
+                                updateAdminOrder({
+                                  orderId: order.id,
+                                  storeId: order.storeId,
+                                  estimatedDelivery: e.target.value,
+                                });
+                              }}
+                              disabled={isUpdating}
+                              className="bg-background border border-border rounded-lg px-2.5 py-1 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                              title="Set delivery date visible to customer"
+                            />
+                            {order.estimated_delivery && (
+                              <span className="text-[11px] text-muted-foreground font-medium">
+                                (Arrives {new Date(order.estimated_delivery).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                            <input
+                              type="text"
+                              placeholder="Courier (e.g. Delhivery)"
+                              defaultValue={order.courier_name || ""}
+                              onBlur={(e) => {
+                                if (e.target.value !== (order.courier_name || "")) {
+                                  updateAdminOrder({
+                                    orderId: order.id,
+                                    storeId: order.storeId,
+                                    courierName: e.target.value,
+                                  });
+                                }
+                              }}
+                              className="bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Tracking Number"
+                              defaultValue={order.tracking_number || ""}
+                              onBlur={(e) => {
+                                if (e.target.value !== (order.tracking_number || "")) {
+                                  updateAdminOrder({
+                                    orderId: order.id,
+                                    storeId: order.storeId,
+                                    trackingNumber: e.target.value,
+                                  });
+                                }
+                              }}
+                              className="bg-background border border-border rounded-lg px-2.5 py-1 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
+                            />
                           </div>
                         </div>
 

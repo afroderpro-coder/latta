@@ -64,11 +64,12 @@ type AuthFormValues = z.infer<typeof authSchema>;
 export default function AuthPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; mode?: string; status?: string }>;
+  searchParams: Promise<{ role?: string; mode?: string; status?: string; redirect?: string }>;
 }) {
   const resolvedParams = use(searchParams);
   const role = resolvedParams.role === "seller" ? "seller" : "client";
   const initialMode = resolvedParams.mode === "signup" ? "signup" : "signin";
+  const redirectTarget = resolvedParams.redirect || "/";
 
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [error, setError] = useState<string | null>(
@@ -281,9 +282,9 @@ export default function AuthPage({
     try {
       setIsGoogleLoading(true);
       setError(null);
-      const redirectTo = typeof window !== "undefined"
-        ? `${window.location.origin}/`
-        : "https://afroder.shop/";
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://afroder.shop";
+      const cleanPath = redirectTarget.startsWith("/") ? redirectTarget : `/${redirectTarget}`;
+      const redirectTo = `${origin}${cleanPath}`;
 
       const { error: googleError } = await supabase.auth.signInWithOAuth({
         provider: "google",
