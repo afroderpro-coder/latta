@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import HeroVisualSlider from "@/components/ui/HeroVisualSlider";
-import { AddToCartButton } from "@/components/ui/AddToCartButton";
 
 import { parseStoreBio } from "@/utils/storeMetadata";
 import staticDeletedStores from "@/data/deleted_stores.json";
@@ -111,35 +110,41 @@ export default async function HomePage() {
         </div>
         
         {products && products.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-16">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
             {products.map((product) => (
               <Link href={`/product/${product.id}`} key={product.id} className="group block">
-                <div className="aspect-[3/4] bg-secondary overflow-hidden mb-6 relative border border-border/60 rounded-md">
+                {/* Compact Image Container */}
+                <div className="aspect-square bg-secondary/60 overflow-hidden mb-4 relative border border-border/80 rounded-xl shadow-xs group-hover:shadow-md transition-all duration-300">
                   {product.image_urls?.[0] ? (
                     <img 
                       src={product.image_urls[0]} 
                       alt={product.title} 
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-medium tracking-widest uppercase">
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs font-medium tracking-widest uppercase">
                       Preview
                     </div>
                   )}
                   {/* Subtle hover overlay */}
-                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-500" />
+                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-300" />
                 </div>
-                <div className="space-y-2 px-1 text-center">
-                  <h4 className="font-medium text-lg tracking-tight text-primary transition-colors">
-                    {product.title}
-                  </h4>
-                  <p className="text-sm text-muted-foreground tracking-wide uppercase">
-                    {product.stores?.shop_name || "AFRODER"}
-                  </p>
-                  
-                  <div className="pt-3 transition-all duration-300 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 group-hover:opacity-100 group-hover:translate-y-0">
-                    <AddToCartButton product={product as any} />
+
+                {/* Title aside and View Button */}
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <div className="min-w-0 flex-1 text-left">
+                    <h4 className="font-semibold text-base tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
+                      {product.title}
+                    </h4>
+                    <p className="text-sm font-bold text-foreground">
+                      ₹{product.price}
+                    </p>
                   </div>
+
+                  <span className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-foreground text-background text-xs font-semibold tracking-wide group-hover:bg-foreground/85 transition-all shrink-0 shadow-2xs">
+                    <span>View</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </span>
                 </div>
               </Link>
             ))}
