@@ -810,7 +810,13 @@ Best Regards,
                 <Clock className="w-4 h-4 animate-pulse" />
               </div>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground">{pendingStores.length}</div>
+            {isLoading ? (
+              <div className="flex items-center gap-1.5 py-1">
+                <RefreshCw className="w-5 h-5 animate-spin text-amber-500" />
+              </div>
+            ) : (
+              <div className="text-3xl font-bold tracking-tight text-foreground">{pendingStores.length}</div>
+            )}
             <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
               {pendingStores.length > 0 ? "Requires Controller Action" : "All Caught Up"}
             </p>
@@ -831,7 +837,13 @@ Best Regards,
                 <ShieldCheck className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground">{approvedStores.length}</div>
+            {isLoading ? (
+              <div className="flex items-center gap-1.5 py-1">
+                <RefreshCw className="w-5 h-5 animate-spin text-emerald-500" />
+              </div>
+            ) : (
+              <div className="text-3xl font-bold tracking-tight text-foreground">{approvedStores.length}</div>
+            )}
             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">Active Verified Sellers</p>
           </div>
 
@@ -850,7 +862,13 @@ Best Regards,
                 <ShieldAlert className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground">{rejectedStores.length}</div>
+            {isLoading ? (
+              <div className="flex items-center gap-1.5 py-1">
+                <RefreshCw className="w-5 h-5 animate-spin text-red-500" />
+              </div>
+            ) : (
+              <div className="text-3xl font-bold tracking-tight text-foreground">{rejectedStores.length}</div>
+            )}
             <p className="text-xs text-muted-foreground mt-1">Denied Applications</p>
           </div>
 
@@ -869,7 +887,13 @@ Best Regards,
                 <Package className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground">{productsTotal}</div>
+            {isLoading ? (
+              <div className="flex items-center gap-1.5 py-1">
+                <RefreshCw className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="text-3xl font-bold tracking-tight text-foreground">{productsTotal}</div>
+            )}
             <p className="text-xs text-primary font-medium mt-1">Click to View & Manage Catalog</p>
           </div>
 
@@ -888,7 +912,13 @@ Best Regards,
                 <ShoppingBag className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground">{ordersList.length}</div>
+            {isLoading ? (
+              <div className="flex items-center gap-1.5 py-1">
+                <RefreshCw className="w-5 h-5 animate-spin text-purple-500" />
+              </div>
+            ) : (
+              <div className="text-3xl font-bold tracking-tight text-foreground">{ordersList.length}</div>
+            )}
             <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">
               ₹{totalRevenue.toLocaleString()} Total Sales ({razorpayOrdersCount} Online)
             </p>
