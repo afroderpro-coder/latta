@@ -63,6 +63,12 @@ export default function SellerOrdersPage() {
   const updateOrderStatus = async (orderId: string, newStatus: StoreOrder["status"]) => {
     if (!store || !storeMeta) return;
 
+    // Security / Business rule: Store owner can ONLY set 'processing' (Packed) or 'shipped' (Shipped), or optionally 'cancelled'
+    if (newStatus !== "processing" && newStatus !== "shipped" && newStatus !== "cancelled") {
+      alert("Store owners can only mark orders as Packed or Shipped. Out for Delivery and Delivered are managed by the Web Controller.");
+      return;
+    }
+
     try {
       const updatedOrders = orders.map((o) =>
         o.id === orderId ? { ...o, status: newStatus } : o
@@ -90,16 +96,42 @@ export default function SellerOrdersPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "processing":
-        return <span className="bg-blue-500/10 text-blue-600 border border-blue-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1"><Clock className="h-3 w-3" /> Processing</span>;
+        return (
+          <span className="bg-blue-500/10 text-blue-600 border border-blue-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <PackageCheck className="h-3 w-3" /> Packed
+          </span>
+        );
       case "shipped":
-        return <span className="bg-purple-500/10 text-purple-600 border border-purple-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1"><Truck className="h-3 w-3" /> Shipped</span>;
+        return (
+          <span className="bg-purple-500/10 text-purple-600 border border-purple-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <Truck className="h-3 w-3" /> Shipped
+          </span>
+        );
+      case "out_for_delivery":
+        return (
+          <span className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/40 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+            <Truck className="h-3 w-3" /> Out for Delivery
+          </span>
+        );
       case "delivered":
-        return <span className="bg-green-500/10 text-green-600 border border-green-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Delivered</span>;
+        return (
+          <span className="bg-green-500/10 text-green-600 border border-green-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" /> Delivered
+          </span>
+        );
       case "cancelled":
-        return <span className="bg-gray-500/10 text-gray-600 border border-gray-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1"><XCircle className="h-3 w-3" /> Cancelled</span>;
+        return (
+          <span className="bg-gray-500/10 text-gray-600 border border-gray-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <XCircle className="h-3 w-3" /> Cancelled
+          </span>
+        );
       case "pending":
       default:
-        return <span className="bg-amber-500/10 text-amber-600 border border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1"><Clock className="h-3 w-3" /> New Order</span>;
+        return (
+          <span className="bg-amber-500/10 text-amber-600 border border-amber-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Placed (New)
+          </span>
+        );
     }
   };
 
@@ -126,17 +158,24 @@ export default function SellerOrdersPage() {
 
         {/* Filter Tabs */}
         <div className="flex items-center gap-1 bg-muted p-1 rounded-lg text-xs overflow-x-auto scrollbar-none">
-          {["all", "pending", "processing", "shipped", "delivered"].map((status) => (
+          {[
+            { id: "all", label: "All Orders" },
+            { id: "pending", label: "Placed (New)" },
+            { id: "processing", label: "Packed" },
+            { id: "shipped", label: "Shipped" },
+            { id: "out_for_delivery", label: "Out for Delivery" },
+            { id: "delivered", label: "Delivered" },
+          ].map((item) => (
             <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-md font-medium capitalize transition-all cursor-pointer ${
-                filterStatus === status
+              key={item.id}
+              onClick={() => setFilterStatus(item.id)}
+              className={`px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer whitespace-nowrap ${
+                filterStatus === item.id
                   ? "bg-card text-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {status}
+              {item.label}
             </button>
           ))}
         </div>
@@ -292,42 +331,73 @@ export default function SellerOrdersPage() {
 
                   {/* Actions Bar */}
                   <div className="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs text-muted-foreground">Change Status:</span>
+                    <span className="text-xs text-muted-foreground font-medium">Order Status & Dispatch:</span>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {order.status !== "processing" && order.status !== "delivered" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateOrderStatus(order.id, "processing")}
-                          className="text-xs h-8"
-                        >
-                          Mark Processing
-                        </Button>
+                      {/* Store owners can only mark Packed (processing) or Shipped (shipped) */}
+                      {order.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateOrderStatus(order.id, "processing")}
+                            className="text-xs h-8 flex items-center gap-1.5 border-blue-500/40 text-blue-600 hover:bg-blue-500/10 cursor-pointer"
+                          >
+                            <PackageCheck className="h-3.5 w-3.5" />
+                            <span>Mark Packed</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => updateOrderStatus(order.id, "shipped")}
+                            className="text-xs h-8 bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Truck className="h-3.5 w-3.5" />
+                            <span>Mark Shipped</span>
+                          </Button>
+                        </>
                       )}
-                      {order.status !== "shipped" && order.status !== "delivered" && (
+
+                      {order.status === "processing" && (
                         <Button
                           size="sm"
                           onClick={() => updateOrderStatus(order.id, "shipped")}
-                          className="text-xs h-8 bg-purple-600 hover:bg-purple-700 text-white"
+                          className="text-xs h-8 bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1.5 cursor-pointer"
                         >
-                          Mark Shipped
+                          <Truck className="h-3.5 w-3.5" />
+                          <span>Mark Shipped</span>
                         </Button>
                       )}
-                      {order.status !== "delivered" && (
-                        <Button
-                          size="sm"
-                          onClick={() => updateOrderStatus(order.id, "delivered")}
-                          className="text-xs h-8 bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          Mark Delivered
-                        </Button>
+
+                      {order.status === "shipped" && (
+                        <div className="text-xs bg-purple-500/10 border border-purple-500/25 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                          <Truck className="h-3.5 w-3.5 shrink-0" />
+                          <span>Shipped & Dispatched. Next: Web Controller will mark Out for Delivery & Delivered.</span>
+                        </div>
                       )}
-                      {order.status !== "cancelled" && (
+
+                      {order.status === "out_for_delivery" && (
+                        <div className="text-xs bg-purple-500/15 border border-purple-500/40 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-lg flex items-center gap-2 font-medium">
+                          <Truck className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+                          <span>Out for Delivery — Assigned by Web Controller</span>
+                        </div>
+                      )}
+
+                      {order.status === "delivered" && (
+                        <div className="text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-lg flex items-center gap-2 font-medium">
+                          <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span>Delivered to Customer — Confirmed by Web Controller</span>
+                        </div>
+                      )}
+
+                      {order.status !== "delivered" && order.status !== "cancelled" && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => updateOrderStatus(order.id, "cancelled")}
-                          className="text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          onClick={() => {
+                            if (confirm("Are you sure you want to cancel this order?")) {
+                              updateOrderStatus(order.id, "cancelled");
+                            }
+                          }}
+                          className="text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer ml-auto"
                         >
                           Cancel
                         </Button>

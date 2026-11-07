@@ -28,6 +28,7 @@ import {
   Check,
   RotateCcw,
   Package,
+  PackageCheck,
   Trash2,
   Eye,
   EyeOff,
@@ -222,6 +223,17 @@ export default function SuperAdminPage() {
         });
         allOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setOrdersList(allOrders);
+
+        // Also fetch from server API to ensure complete orders aggregation
+        try {
+          const ordRes = await fetch("/api/admin/orders");
+          const ordJson = await ordRes.json();
+          if (ordJson.success && Array.isArray(ordJson.orders) && ordJson.orders.length > 0) {
+            setOrdersList(ordJson.orders);
+          }
+        } catch (e) {
+          console.warn("Could not fetch server admin orders, using store bio aggregation:", e);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -1233,8 +1245,8 @@ Best Regards,
                   <span className="text-muted-foreground font-semibold px-2">Status:</span>
                   {[
                     { id: "all", label: "All" },
-                    { id: "pending", label: "Pending" },
-                    { id: "processing", label: "Processing" },
+                    { id: "pending", label: "Placed (New)" },
+                    { id: "processing", label: "Packed" },
                     { id: "shipped", label: "Shipped" },
                     { id: "out_for_delivery", label: "Out for Delivery" },
                     { id: "delivered", label: "Delivered" },
@@ -1341,8 +1353,8 @@ Best Regards,
                                 disabled={isUpdating}
                                 className="text-xs font-semibold bg-secondary/80 hover:bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-foreground cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
                               >
-                                <option value="pending">Status: Pending</option>
-                                <option value="processing">Status: Processing</option>
+                                <option value="pending">Status: Placed (Pending)</option>
+                                <option value="processing">Status: Packed (Processing)</option>
                                 <option value="shipped">Status: Shipped</option>
                                 <option value="out_for_delivery">Status: Out for Delivery</option>
                                 <option value="delivered">Status: Delivered (Completed)</option>
@@ -1355,6 +1367,82 @@ Best Regards,
                             <span className="text-lg font-extrabold text-foreground font-mono">
                               ₹{order.total_amount?.toFixed(2)}
                             </span>
+                          </div>
+                        </div>
+
+                        {/* Web Controller Logistics & Quick Action Controls */}
+                        <div className="bg-secondary/40 border border-border rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-muted-foreground">Logistics Status:</span>
+                            {order.status === "pending" && (
+                              <span className="bg-amber-500/10 text-amber-600 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Placed (New)
+                              </span>
+                            )}
+                            {order.status === "processing" && (
+                              <span className="bg-blue-500/10 text-blue-600 border border-blue-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <PackageCheck className="w-3 h-3" /> Packed by Seller
+                              </span>
+                            )}
+                            {order.status === "shipped" && (
+                              <span className="bg-purple-500/10 text-purple-600 border border-purple-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <Truck className="w-3 h-3" /> Shipped by Seller
+                              </span>
+                            )}
+                            {order.status === "out_for_delivery" && (
+                              <span className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse">
+                                <Truck className="w-3 h-3" /> Out for Delivery
+                              </span>
+                            )}
+                            {order.status === "delivered" && (
+                              <span className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Delivered
+                              </span>
+                            )}
+                            {order.status === "cancelled" && (
+                              <span className="bg-red-500/10 text-red-600 border border-red-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <XCircle className="w-3 h-3" /> Cancelled
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Quick 1-Click Action Buttons for Web Controller */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {order.status !== "out_for_delivery" && order.status !== "delivered" && order.status !== "cancelled" && (
+                              <Button
+                                size="sm"
+                                disabled={isUpdating}
+                                onClick={() =>
+                                  updateAdminOrder({
+                                    orderId: order.id,
+                                    storeId: order.storeId,
+                                    newStatus: "out_for_delivery",
+                                  })
+                                }
+                                className="text-xs h-7.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>Mark Out for Delivery</span>
+                              </Button>
+                            )}
+
+                            {order.status !== "delivered" && order.status !== "cancelled" && (
+                              <Button
+                                size="sm"
+                                disabled={isUpdating}
+                                onClick={() =>
+                                  updateAdminOrder({
+                                    orderId: order.id,
+                                    storeId: order.storeId,
+                                    newStatus: "delivered",
+                                  })
+                                }
+                                className="text-xs h-7.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Mark Delivered</span>
+                              </Button>
+                            )}
                           </div>
                         </div>
 
