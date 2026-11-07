@@ -72,10 +72,28 @@ export default function CartPage() {
   }, [items.length]);
 
   useEffect(() => {
-    if (profile?.full_name && !customerName) {
-      setCustomerName(profile.full_name);
+    if (typeof window !== "undefined") {
+      const savedName =
+        profile?.full_name ||
+        user?.user_metadata?.full_name ||
+        localStorage.getItem("afroder_customer_name") ||
+        "";
+      const savedPhone =
+        user?.user_metadata?.phone ||
+        user?.user_metadata?.contact_number ||
+        localStorage.getItem("afroder_customer_phone") ||
+        "";
+      const savedAddress =
+        user?.user_metadata?.address ||
+        user?.user_metadata?.location ||
+        localStorage.getItem("afroder_customer_address") ||
+        "";
+
+      if (savedName && !customerName) setCustomerName(savedName);
+      if (savedPhone && !customerPhone) setCustomerPhone(savedPhone);
+      if (savedAddress && !deliveryAddress) setDeliveryAddress(savedAddress);
     }
-  }, [profile, customerName]);
+  }, [profile, user, customerName, customerPhone, deliveryAddress]);
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < items.length;

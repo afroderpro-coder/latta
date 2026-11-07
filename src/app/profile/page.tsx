@@ -27,10 +27,14 @@ import {
   CreditCard,
   AlertCircle,
   ArrowRight,
+  Pencil,
+  Check,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { StoreOrder } from "@/utils/storeMetadata";
+import { supabase } from "@/utils/supabase/client";
 
 export default function ProfilePage() {
   const { profile, user, isLoading, signOut } = useAuthStore();
@@ -43,6 +47,158 @@ export default function ProfilePage() {
   const [manualOrderId, setManualOrderId] = useState("");
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
   const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
+
+  // Profile Edit State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editPincode, setEditPincode] = useState("");
+  const [editRole, setEditRole] = useState<"client" | "seller">("client");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState<string | null>(null);
+  const [profileErrorMessage, setProfileErrorMessage] = useState<string | null>(null);
+
+  // Sync profile details into form
+  useEffect(() => {
+    if (user || profile) {
+      const initialName =
+        profile?.full_name ||
+        user?.user_metadata?.full_name ||
+        (typeof window !== "undefined" ? localStorage.getItem("afroder_customer_name") || "" : "");
+      const initialPhone =
+        user?.user_metadata?.phone ||
+        user?.user_metadata?.contact_number ||
+        (typeof window !== "undefined" ? localStorage.getItem("afroder_customer_phone") || "" : "");
+      const initialAddress =
+        user?.user_metadata?.address ||
+        user?.user_metadata?.location ||
+        (typeof window !== "undefined" ? localStorage.getItem("afroder_customer_address") || "" : "");
+      const initialCity =
+        user?.user_metadata?.city ||
+        (typeof window !== "undefined" ? localStorage.getItem("afroder_customer_city") || "" : "");
+      const initialPincode =
+        user?.user_metadata?.pincode ||
+        (typeof window !== "undefined" ? localStorage.getItem("afroder_customer_pincode") || "" : "");
+      const initialRole =
+        profile?.role === "seller" || user?.user_metadata?.role === "seller"
+          ? "seller"
+          : "client";
+
+      setEditName(initialName);
+      setEditPhone(initialPhone);
+      setEditAddress(initialAddress);
+      setEditCity(initialCity);
+      setEditPincode(initialPincode);
+      setEditRole(initialRole);
+    }
+  }, [user, profile]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setIsSavingProfile(true);
+    setProfileSuccessMessage(null);
+    setProfileErrorMessage(null);
+
+    try {
+      const cleanName = editName.trim();
+      const cleanPhone = editPhone.trim();
+      const cleanAddress = editAddress.trim();
+      const cleanCity = editCity.trim();
+      const cleanPincode = editPincode.trim();
+
+      // Format location address nicely
+      let fullDeliveryLocation = cleanAddress;
+      if (cleanCity && !fullDeliveryLocation.includes(cleanCity)) {
+        fullDeliveryLocation += fullDeliveryLocation ? `, ${cleanCity}` : cleanCity;
+      }
+      if (cleanPincode && !fullDeliveryLocation.includes(cleanPincode)) {
+        fullDeliveryLocation += fullDeliveryLocation ? ` - ${cleanPincode}` : `Pincode: ${cleanPincode}`;
+      }
+
+      // 1. Update in Supabase profiles
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: cleanName,
+          role: editRole,
+        })
+        .eq("id", user.id);
+
+      if (profileError) {
+        console.warn("Profiles update warning:", profileError);
+      }
+
+      // 2. Update user metadata in Supabase Auth
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          full_name: cleanName,
+          phone: cleanPhone,
+          contact_number: cleanPhone,
+          address: fullDeliveryLocation,
+          location: fullDeliveryLocation,
+          city: cleanCity,
+          pincode: cleanPincode,
+          role: editRole,
+        },
+      });
+
+      if (authError) {
+        console.warn("Auth metadata update warning:", authError);
+      }
+
+      // 3. Update localStorage for instant checkout auto-fill
+      if (typeof window !== "undefined") {
+        if (cleanName) localStorage.setItem("afroder_customer_name", cleanName);
+        if (cleanPhone) localStorage.setItem("afroder_customer_phone", cleanPhone);
+        if (fullDeliveryLocation) localStorage.setItem("afroder_customer_address", fullDeliveryLocation);
+        if (cleanCity) localStorage.setItem("afroder_customer_city", cleanCity);
+        if (cleanPincode) localStorage.setItem("afroder_customer_pincode", cleanPincode);
+      }
+
+      // 4. Update in-memory Zustand store
+      if (profile) {
+        useAuthStore.getState().setProfile({
+          ...profile,
+          full_name: cleanName,
+          role: editRole,
+        });
+      }
+
+      setProfileSuccessMessage("Profile details, contact number & delivery location saved successfully!");
+      setIsEditingProfile(false);
+      // Re-fetch orders in case phone was updated
+      fetchCustomerOrders();
+    } catch (err: any) {
+      console.error("Error saving profile:", err);
+      setProfileErrorMessage(err.message || "Failed to update profile.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleQuickSwitchToCustomer = async () => {
+    if (!user) return;
+    setIsSavingProfile(true);
+    try {
+      await supabase.from("profiles").update({ role: "client" }).eq("id", user.id);
+      await supabase.auth.updateUser({ data: { role: "client" } });
+      setEditRole("client");
+      if (profile) {
+        useAuthStore.getState().setProfile({
+          ...profile,
+          role: "client",
+        });
+      }
+      setProfileSuccessMessage("Account mode switched to Customer / Buyer!");
+    } catch (e: any) {
+      console.error("Failed to switch role:", e);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Fetch orders associated with this customer
   const fetchCustomerOrders = async (customId?: string) => {
@@ -626,55 +782,343 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── TAB 3: Account Information ── */}
+      {/* ── TAB 3: Account Information & Editable Delivery Location ── */}
       {activeTab === "account" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-card border border-border rounded-3xl p-6 sm:p-7 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-foreground">Personal Details</h3>
-            <div className="space-y-3 text-xs sm:text-sm">
-              <div className="p-3.5 rounded-xl bg-secondary/40 border border-border">
-                <span className="text-muted-foreground text-xs block">Full Name</span>
-                <span className="font-semibold text-foreground">
-                  {profile?.full_name || user?.user_metadata?.full_name || "Not provided"}
-                </span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Personal Details & Delivery Address Card */}
+          <div className="lg:col-span-2 bg-card border border-border rounded-3xl p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-foreground">
+                  Personal Details & Delivery Information
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Manage your contact details and default delivery address for instant checkout
+                </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-secondary/40 border border-border">
-                <span className="text-muted-foreground text-xs block">Gmail Address</span>
-                <span className="font-semibold text-foreground">{user?.email || "Not linked"}</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-secondary/40 border border-border">
-                <span className="text-muted-foreground text-xs block">Account Type</span>
-                <span className="font-semibold text-foreground capitalize">
-                  {profile?.role === "seller" ? "Seller Merchant" : "Customer / Shopper"}
-                </span>
-              </div>
+              {!isEditingProfile && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingProfile(true)}
+                  className="rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </Button>
+              )}
             </div>
+
+            {/* Notification messages */}
+            {profileSuccessMessage && (
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-xs font-medium flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>{profileSuccessMessage}</span>
+              </div>
+            )}
+
+            {profileErrorMessage && (
+              <div className="p-3.5 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-xs font-medium flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{profileErrorMessage}</span>
+              </div>
+            )}
+
+            {/* View Mode */}
+            {!isEditingProfile ? (
+              <div className="space-y-3.5 text-xs sm:text-sm">
+                <div className="p-4 rounded-2xl bg-secondary/30 border border-border flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-xs font-medium flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5" />
+                      <span>Full Name</span>
+                    </span>
+                    <p className="font-bold text-foreground text-sm sm:text-base">
+                      {editName || profile?.full_name || user?.user_metadata?.full_name || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-secondary/30 border border-border flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-xs font-medium flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Gmail Address</span>
+                    </span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {user?.email || "Not linked"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-secondary/30 border border-border flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-xs font-medium flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Contact Phone Number</span>
+                    </span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {editPhone || (
+                        <span className="text-muted-foreground font-normal italic">
+                          No contact number added yet
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {!editPhone && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(true)}
+                      className="text-xs text-primary font-bold hover:underline cursor-pointer"
+                    >
+                      + Add Phone
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-4 rounded-2xl bg-secondary/30 border border-border flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-xs font-medium flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-primary" />
+                      <span>Delivery Location / Shipping Address</span>
+                    </span>
+                    <p className="font-semibold text-foreground text-sm leading-relaxed">
+                      {editAddress ? (
+                        <>
+                          {editAddress}
+                          {editCity ? `, ${editCity}` : ""}
+                          {editPincode ? ` - ${editPincode}` : ""}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground font-normal italic">
+                          No delivery address saved yet (Used for auto-fill on checkout)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {!editAddress && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(true)}
+                      className="text-xs text-primary font-bold hover:underline cursor-pointer"
+                    >
+                      + Add Address
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-4 rounded-2xl bg-secondary/30 border border-border flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-xs font-medium flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Account Type</span>
+                    </span>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      {editRole === "seller" ? (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                          Seller Merchant Account
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                          Customer Account (Verified Shopper)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {editRole === "seller" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleQuickSwitchToCustomer}
+                      disabled={isSavingProfile}
+                      className="text-xs h-8 rounded-lg cursor-pointer"
+                    >
+                      Switch to Customer Mode
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Edit Form Mode */
+              <form onSubmit={handleSaveProfile} className="space-y-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Full Name *</span>
+                  </label>
+                  <Input
+                    placeholder="Enter your name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                    className="h-10 text-sm rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Contact Phone Number</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. 9671016500 (Used for delivery & order updates)"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="h-10 text-sm rounded-xl"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    This phone number connects your WhatsApp orders and delivery tracking.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Delivery Location / Street Address</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Flat / House No., Street, Colony, Landmark..."
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    className="flex w-full rounded-xl border border-border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">City</label>
+                    <Input
+                      placeholder="e.g. Tauru / Gurgaon"
+                      value={editCity}
+                      onChange={(e) => setEditCity(e.target.value)}
+                      className="h-10 text-sm rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Pincode</label>
+                    <Input
+                      placeholder="e.g. 122105"
+                      value={editPincode}
+                      onChange={(e) => setEditPincode(e.target.value)}
+                      className="h-10 text-sm rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                {/* Account Type Selection */}
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <label className="text-xs font-semibold text-foreground block">
+                    Account Mode
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditRole("client")}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        editRole === "client"
+                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                          : "border-border bg-background hover:bg-secondary/40"
+                      }`}
+                    >
+                      <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                        <span>🛍️ Customer Account</span>
+                        {editRole === "client" && <Check className="w-3 h-3 text-primary" />}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Shop items, track parcel delivery & order history
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditRole("seller")}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        editRole === "seller"
+                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                          : "border-border bg-background hover:bg-secondary/40"
+                      }`}
+                    >
+                      <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                        <span>🏪 Seller Merchant</span>
+                        {editRole === "seller" && <Check className="w-3 h-3 text-primary" />}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        For brand owners managing verified storefronts
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-3">
+                  <Button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className="rounded-xl px-6 font-bold text-xs h-10 cursor-pointer"
+                  >
+                    {isSavingProfile ? (
+                      <div className="flex items-center gap-1.5">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving...</span>
+                      </div>
+                    ) : (
+                      "Save Details & Location"
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsEditingProfile(false);
+                      setProfileErrorMessage(null);
+                    }}
+                    className="rounded-xl text-xs h-10 cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
 
-          <div className="bg-card border border-border rounded-3xl p-6 sm:p-7 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-foreground">Customer Support</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Have questions about your order, shipping timeline, or returns? Our sales & support team is active daily on WhatsApp.
-            </p>
+          {/* Right Column: Customer Support & Quick Actions */}
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-3xl p-6 sm:p-7 shadow-xs space-y-4">
+              <h3 className="text-base font-bold text-foreground">Customer Support</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Have questions about your order, shipping timeline, or delivery address? Our sales & support team is active daily on WhatsApp.
+              </p>
 
-            <div className="space-y-2 pt-2">
-              <a
-                href="https://wa.me/919671016500"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3 rounded-xl font-bold text-xs transition-colors w-full"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>Chat with WhatsApp Support</span>
-              </a>
+              <div className="space-y-2.5 pt-2">
+                <a
+                  href="https://wa.me/919671016500?text=Hi%20AFRODER%2C%20I%20have%20a%20question%20regarding%20my%20order"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3 rounded-xl font-bold text-xs transition-colors w-full cursor-pointer shadow-xs"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Chat with WhatsApp Support</span>
+                </a>
 
-              <Link href="/shop" className="block">
-                <Button variant="outline" className="w-full rounded-xl text-xs font-semibold h-10">
-                  Continue Shopping
-                </Button>
-              </Link>
+                <Link href="/shop" className="block">
+                  <Button variant="outline" className="w-full rounded-xl text-xs font-semibold h-10">
+                    Continue Shopping
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="bg-secondary/30 border border-border rounded-3xl p-6 shadow-xs space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Delivery Guarantee
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Your saved contact number and address are protected with 256-bit encryption and are used strictly for courier delivery and WhatsApp status updates.
+              </p>
             </div>
           </div>
         </div>
