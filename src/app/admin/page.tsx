@@ -98,6 +98,9 @@ export default function SuperAdminPage() {
   const [orderPaymentFilter, setOrderPaymentFilter] = useState<"all" | "razorpay" | "whatsapp">("all");
   const [orderViewTab, setOrderViewTab] = useState<"active" | "completed" | "cancelled" | "all">("all");
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadingStores, setLoadingStores] = useState<boolean>(true);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
+  const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "products" | "orders">("pending");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [productActionInProgress, setProductActionInProgress] = useState<string | null>(null);
@@ -134,112 +137,128 @@ export default function SuperAdminPage() {
   // Fetch all stores and their approval metadata
   const fetchData = async () => {
     setIsLoading(true);
-    try {
-      // 1. Fetch stores from server API (with server-side deletion filter)
-      let storesData: any[] = [];
-      let apiLoaded = false;
+    setLoadingStores(true);
+    setLoadingProducts(true);
+    setLoadingOrders(true);
+
+    // 1. Independent Task: Fetch all products with store relation
+    const productsTask = (async () => {
       try {
-        const res = await fetch("/api/admin/stores");
-        const json = await res.json();
-        if (json.success && Array.isArray(json.stores)) {
-          storesData = json.stores;
-          apiLoaded = true;
-        }
-      } catch (e) {
-        console.warn("API store fetch error, falling back:", e);
-      }
-
-      if (!apiLoaded) {
-        const { data: directData } = await supabase
-          .from("stores")
-          .select("*, profiles:seller_id(id, email, full_name)")
+        const { data: prodsData, count: prodCount, error: prodsError } = await supabase
+          .from("products")
+          .select("*, stores(id, shop_name)", { count: "exact" })
           .order("created_at", { ascending: false });
-        if (directData) storesData = directData;
-      }
 
-      // 2. Fetch all products with store relation
-      const { data: prodsData, count: prodCount, error: prodsError } = await supabase
-        .from("products")
-        .select("*, stores(id, shop_name)", { count: "exact" })
-        .order("created_at", { ascending: false });
-
-      if (prodsError) {
-        console.error("Error fetching products:", prodsError);
-      }
-
-      if (prodsData) {
-        setProductsList(prodsData as any);
-      }
-      setProductsTotal(prodCount ?? prodsData?.length ?? 0);
-
-      if (storesData) {
-        let deletedStoreIds: string[] = [];
-        try {
-          deletedStoreIds = JSON.parse(localStorage.getItem("afroder_deleted_store_ids") || "[]");
-        } catch {
-          deletedStoreIds = [];
+        if (prodsError) {
+          console.error("Error fetching products:", prodsError);
         }
 
-        // Identify sellers who have at least one store with real bio/metadata
-        const sellersWithRealStore = new Set(
-          storesData.filter((s) => s.bio && s.bio.trim() !== "").map((s) => s.seller_id)
-        );
+        if (prodsData) {
+          setProductsList(prodsData as any);
+        }
+        setProductsTotal(prodCount ?? prodsData?.length ?? 0);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingProducts(false);
+      }
+    })();
 
-        const enriched: SellerStoreRecord[] = storesData
-          .filter((store) => {
-            // Filter out manually deleted stores
-            if (deletedStoreIds.includes(store.id)) return false;
-
-            // Filter out duplicate ghost stores (bio is null/empty and seller has an actual real store)
-            if ((!store.bio || store.bio.trim() === "") && sellersWithRealStore.has(store.seller_id)) {
-              return false;
-            }
-
-            return true;
-          })
-          .map((store) => {
-            const meta = parseStoreBio(store.bio);
-            return {
-              ...store,
-              meta,
-            };
-          });
-        setStores(enriched);
-
-        // Aggregate all customer orders across all stores
-        const allOrders: AdminOrderRecord[] = [];
-        enriched.forEach((store) => {
-          if (store.meta?.orders && Array.isArray(store.meta.orders)) {
-            store.meta.orders.forEach((order) => {
-              allOrders.push({
-                ...order,
-                storeId: store.id,
-                storeName: store.shop_name || "AFRODER Partner Store",
-                sellerId: store.seller_id,
-                sellerName: store.meta.seller_name || store.profiles?.full_name || "Merchant",
-              });
-            });
-          }
-        });
-        allOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setOrdersList(allOrders);
-
-        // Also fetch from server API to ensure complete orders aggregation
+    // 2. Independent Task: Fetch stores from server API
+    const storesTask = (async () => {
+      try {
+        let storesData: any[] = [];
+        let apiLoaded = false;
         try {
-          const ordRes = await fetch("/api/admin/orders");
-          const ordJson = await ordRes.json();
-          if (ordJson.success && Array.isArray(ordJson.orders) && ordJson.orders.length > 0) {
-            setOrdersList(ordJson.orders);
+          const res = await fetch("/api/admin/stores");
+          const json = await res.json();
+          if (json.success && Array.isArray(json.stores)) {
+            storesData = json.stores;
+            apiLoaded = true;
           }
         } catch (e) {
-          console.warn("Could not fetch server admin orders, using store bio aggregation:", e);
+          console.warn("API store fetch error, falling back:", e);
         }
+
+        if (!apiLoaded) {
+          const { data: directData } = await supabase
+            .from("stores")
+            .select("*, profiles:seller_id(id, email, full_name)")
+            .order("created_at", { ascending: false });
+          if (directData) storesData = directData;
+        }
+
+        if (storesData) {
+          let deletedStoreIds: string[] = [];
+          try {
+            deletedStoreIds = JSON.parse(localStorage.getItem("afroder_deleted_store_ids") || "[]");
+          } catch {
+            deletedStoreIds = [];
+          }
+
+          const sellersWithRealStore = new Set(
+            storesData.filter((s) => s.bio && s.bio.trim() !== "").map((s) => s.seller_id)
+          );
+
+          const enriched: SellerStoreRecord[] = storesData
+            .filter((store) => {
+              if (deletedStoreIds.includes(store.id)) return false;
+              if ((!store.bio || store.bio.trim() === "") && sellersWithRealStore.has(store.seller_id)) {
+                return false;
+              }
+              return true;
+            })
+            .map((store) => {
+              const meta = parseStoreBio(store.bio);
+              return {
+                ...store,
+                meta,
+              };
+            });
+          setStores(enriched);
+
+          // Initial fallback orders from bio if ordersTask hasn't finished yet
+          const allOrders: AdminOrderRecord[] = [];
+          enriched.forEach((store) => {
+            if (store.meta?.orders && Array.isArray(store.meta.orders)) {
+              store.meta.orders.forEach((order) => {
+                allOrders.push({
+                  ...order,
+                  storeId: store.id,
+                  storeName: store.shop_name || "AFRODER Partner Store",
+                  sellerId: store.seller_id,
+                  sellerName: store.meta.seller_name || store.profiles?.full_name || "Merchant",
+                });
+              });
+            }
+          });
+          allOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setOrdersList((prev) => (prev.length > 0 ? prev : allOrders));
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingStores(false);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+    })();
+
+    // 3. Independent Task: Fetch orders from server API
+    const ordersTask = (async () => {
+      try {
+        const ordRes = await fetch("/api/admin/orders");
+        const ordJson = await ordRes.json();
+        if (ordJson.success && Array.isArray(ordJson.orders) && ordJson.orders.length > 0) {
+          setOrdersList(ordJson.orders);
+        }
+      } catch (e) {
+        console.warn("Could not fetch server admin orders:", e);
+      } finally {
+        setLoadingOrders(false);
+      }
+    })();
+
+    await Promise.allSettled([productsTask, storesTask, ordersTask]);
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -810,7 +829,7 @@ Best Regards,
                 <Clock className="w-4 h-4 animate-pulse" />
               </div>
             </div>
-            {isLoading ? (
+            {loadingStores ? (
               <div className="flex items-center gap-1.5 py-1">
                 <RefreshCw className="w-5 h-5 animate-spin text-amber-500" />
               </div>
@@ -837,7 +856,7 @@ Best Regards,
                 <ShieldCheck className="w-4 h-4" />
               </div>
             </div>
-            {isLoading ? (
+            {loadingStores ? (
               <div className="flex items-center gap-1.5 py-1">
                 <RefreshCw className="w-5 h-5 animate-spin text-emerald-500" />
               </div>
@@ -862,7 +881,7 @@ Best Regards,
                 <ShieldAlert className="w-4 h-4" />
               </div>
             </div>
-            {isLoading ? (
+            {loadingStores ? (
               <div className="flex items-center gap-1.5 py-1">
                 <RefreshCw className="w-5 h-5 animate-spin text-red-500" />
               </div>
@@ -887,7 +906,7 @@ Best Regards,
                 <Package className="w-4 h-4" />
               </div>
             </div>
-            {isLoading ? (
+            {loadingProducts ? (
               <div className="flex items-center gap-1.5 py-1">
                 <RefreshCw className="w-5 h-5 animate-spin text-primary" />
               </div>
@@ -912,7 +931,7 @@ Best Regards,
                 <ShoppingBag className="w-4 h-4" />
               </div>
             </div>
-            {isLoading ? (
+            {loadingOrders ? (
               <div className="flex items-center gap-1.5 py-1">
                 <RefreshCw className="w-5 h-5 animate-spin text-purple-500" />
               </div>

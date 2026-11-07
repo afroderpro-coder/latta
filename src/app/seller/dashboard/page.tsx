@@ -11,82 +11,123 @@ import { parseStoreBio } from "@/utils/storeMetadata";
 
 export default function SellerDashboardPage() {
   const { profile } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalProducts: 0,
-    totalOrders: 0,
-    totalRevenue: 0,
-  });
+
+  // Real independent loading state for each metric
+  const [loadingRevenue, setLoadingRevenue] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0);
 
   useEffect(() => {
-    async function loadStats() {
-      setIsLoading(true);
-      try {
-        const { data: authData } = await supabase.auth.getUser();
-        const currentUserId = profile?.id || authData?.user?.id;
-        if (!currentUserId) {
-          setIsLoading(false);
-          return;
+    let isMounted = true;
+
+    async function loadDashboard() {
+      setLoadingRevenue(true);
+      setLoadingOrders(true);
+      setLoadingProducts(true);
+
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = profile?.id || authData?.user?.id;
+      if (!currentUserId) {
+        if (isMounted) {
+          setLoadingRevenue(false);
+          setLoadingOrders(false);
+          setLoadingProducts(false);
         }
+        return;
+      }
 
-        const { data: stores } = await supabase
-          .from("stores")
-          .select("id, bio")
-          .eq("seller_id", currentUserId)
-          .order("created_at", { ascending: false });
+      const { data: stores } = await supabase
+        .from("stores")
+        .select("id, bio")
+        .eq("seller_id", currentUserId)
+        .order("created_at", { ascending: false });
 
-        if (!stores || stores.length === 0) {
-          setIsLoading(false);
-          return;
+      if (!stores || stores.length === 0) {
+        if (isMounted) {
+          setLoadingRevenue(false);
+          setLoadingOrders(false);
+          setLoadingProducts(false);
         }
+        return;
+      }
 
-        const store = stores.find((s) => s.bio && s.bio.trim() !== "") || stores[0];
-        const storeIds = stores.map((s) => s.id);
+      const store = stores.find((s) => s.bio && s.bio.trim() !== "") || stores[0];
+      const storeIds = stores.map((s) => s.id);
 
-        const { count: productCount } = await supabase
-          .from("products")
-          .select("*", { count: 'exact', head: true })
-          .in("store_id", storeIds);
+      // ── Task 1: Load Products Count (Direct database query - finishes independently) ──
+      (async () => {
+        try {
+          const { count: productCount } = await supabase
+            .from("products")
+            .select("*", { count: "exact", head: true })
+            .in("store_id", storeIds);
 
-        // Load orders from store metadata
-        const meta = parseStoreBio(store.bio);
-        const orders = meta.orders || [];
+          if (isMounted) {
+            setTotalProducts(productCount || 0);
+            setLoadingProducts(false);
+          }
+        } catch (e) {
+          console.error("Products count error:", e);
+          if (isMounted) setLoadingProducts(false);
+        }
+      })();
 
-        let revenue = 0;
-        let orderCount = orders.length;
+      // ── Task 2: Load Orders Count Independently ──
+      (async () => {
+        try {
+          const meta = parseStoreBio(store.bio);
+          const orders = meta.orders || [];
 
-        if (orders.length > 0) {
-          revenue = orders.reduce((acc, order) => acc + (order.total_amount || 0), 0);
-        } else {
-          // Fallback check order_items table if it ever exists
-          try {
-            const { data: orderItems } = await supabase
-              .from("order_items")
-              .select("quantity, unit_price")
-              .eq("store_id", store.id);
+          if (isMounted) {
+            setTotalOrders(orders.length);
+            setLoadingOrders(false);
+          }
 
-            if (orderItems && orderItems.length > 0) {
-              revenue = orderItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
-              orderCount = orderItems.length;
+          // ── Task 3: Calculate Revenue Independently ──
+          setTimeout(async () => {
+            try {
+              let rev = 0;
+              if (orders.length > 0) {
+                rev = orders.reduce((acc, order) => acc + (order.total_amount || 0), 0);
+              } else {
+                const { data: orderItems } = await supabase
+                  .from("order_items")
+                  .select("quantity, unit_price")
+                  .eq("store_id", store.id);
+
+                if (orderItems && orderItems.length > 0) {
+                  rev = orderItems.reduce((acc, item) => acc + item.quantity * item.unit_price, 0);
+                }
+              }
+
+              if (isMounted) {
+                setTotalRevenue(rev);
+                setLoadingRevenue(false);
+              }
+            } catch (err) {
+              console.error("Revenue calculation error:", err);
+              if (isMounted) setLoadingRevenue(false);
             }
-          } catch {
-            // ignore
+          }, 160);
+        } catch (e) {
+          console.error("Orders count error:", e);
+          if (isMounted) {
+            setLoadingOrders(false);
+            setLoadingRevenue(false);
           }
         }
-
-        setStats({
-          totalProducts: productCount || 0,
-          totalOrders: orderCount,
-          totalRevenue: revenue,
-        });
-      } catch (err) {
-        console.error("Failed to load seller stats:", err);
-      } finally {
-        setIsLoading(false);
-      }
+      })();
     }
 
-    loadStats();
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
   }, [profile]);
 
   return (
@@ -97,53 +138,68 @@ export default function SellerDashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="overflow-hidden">
+        {/* Total Revenue */}
+        <Card className="overflow-hidden border-border/80 shadow-xs hover:shadow-sm transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+              <DollarSign className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {loadingRevenue ? (
               <div className="flex items-center gap-2 py-1">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-xs text-muted-foreground animate-pulse font-medium">Calculating...</span>
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
+                <span className="text-xs text-muted-foreground animate-pulse font-medium">Calculating revenue...</span>
               </div>
             ) : (
-              <div className="text-2xl font-bold font-mono">₹{stats.totalRevenue.toFixed(2)}</div>
+              <div className="text-2xl font-bold font-mono text-foreground animate-in fade-in zoom-in-95 duration-200">
+                ₹{totalRevenue.toFixed(2)}
+              </div>
             )}
           </CardContent>
         </Card>
         
-        <Card className="overflow-hidden">
+        {/* Total Orders */}
+        <Card className="overflow-hidden border-border/80 shadow-xs hover:shadow-sm transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+            <div className="w-8 h-8 rounded-full bg-purple-500/10 text-purple-600 flex items-center justify-center">
+              <ShoppingBag className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {loadingOrders ? (
               <div className="flex items-center gap-2 py-1">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-xs text-muted-foreground animate-pulse font-medium">Loading...</span>
+                <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+                <span className="text-xs text-muted-foreground animate-pulse font-medium">Fetching orders...</span>
               </div>
             ) : (
-              <div className="text-2xl font-bold font-mono">{stats.totalOrders}</div>
+              <div className="text-2xl font-bold font-mono text-foreground animate-in fade-in zoom-in-95 duration-200">
+                {totalOrders}
+              </div>
             )}
           </CardContent>
         </Card>
         
-        <Card className="overflow-hidden">
+        {/* Active Products */}
+        <Card className="overflow-hidden border-border/80 shadow-xs hover:shadow-sm transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Active Products</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <Package className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {loadingProducts ? (
               <div className="flex items-center gap-2 py-1">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-xs text-muted-foreground animate-pulse font-medium">Loading...</span>
+                <span className="text-xs text-muted-foreground animate-pulse font-medium">Scanning catalog...</span>
               </div>
             ) : (
-              <div className="text-2xl font-bold font-mono">{stats.totalProducts}</div>
+              <div className="text-2xl font-bold font-mono text-foreground animate-in fade-in zoom-in-95 duration-200">
+                {totalProducts}
+              </div>
             )}
           </CardContent>
         </Card>
