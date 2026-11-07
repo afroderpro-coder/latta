@@ -96,7 +96,7 @@ export default function SuperAdminPage() {
   const [ordersList, setOrdersList] = useState<AdminOrderRecord[]>([]);
   const [orderFilterStatus, setOrderFilterStatus] = useState<string>("all");
   const [orderPaymentFilter, setOrderPaymentFilter] = useState<"all" | "razorpay" | "whatsapp">("all");
-  const [orderViewTab, setOrderViewTab] = useState<"active" | "completed" | "all">("active");
+  const [orderViewTab, setOrderViewTab] = useState<"active" | "completed" | "cancelled" | "all">("all");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "products" | "orders">("pending");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -611,24 +611,30 @@ Best Regards,
   const whatsappOrdersCount = ordersList.filter((o) => o.payment_method === "whatsapp" || !o.payment_method).length;
   const activeOrdersCount = ordersList.filter((o) => o.status !== "delivered" && o.status !== "cancelled").length;
   const completedOrdersCount = ordersList.filter((o) => o.status === "delivered").length;
+  const cancelledOrdersCount = ordersList.filter((o) => o.status === "cancelled").length;
 
   const filteredOrders = ordersList.filter((o) => {
-    // Active vs Completed tabs
-    if (orderViewTab === "active" && (o.status === "delivered" || o.status === "cancelled")) {
-      return false;
-    }
-    if (orderViewTab === "completed" && o.status !== "delivered") {
-      return false;
+    // 1. If a specific status filter is chosen (e.g. Cancelled, Shipped), that takes precedence
+    if (orderFilterStatus !== "all") {
+      if (o.status !== orderFilterStatus) return false;
+    } else {
+      // 2. Otherwise respect top-level view tab
+      if (orderViewTab === "active" && (o.status === "delivered" || o.status === "cancelled")) {
+        return false;
+      }
+      if (orderViewTab === "completed" && o.status !== "delivered") {
+        return false;
+      }
+      if (orderViewTab === "cancelled" && o.status !== "cancelled") {
+        return false;
+      }
     }
 
-    // Payment filter
+    // 3. Payment filter
     if (orderPaymentFilter === "razorpay" && o.payment_method !== "razorpay") return false;
     if (orderPaymentFilter === "whatsapp" && o.payment_method === "razorpay") return false;
 
-    // Status filter
-    if (orderFilterStatus !== "all" && o.status !== orderFilterStatus) return false;
-
-    // Search query
+    // 4. Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const idMatch = (o.id || "").toLowerCase().includes(q);
@@ -1138,15 +1144,29 @@ Best Regards,
             <div className="space-y-5">
               {/* Lifecycle Sub-Tabs: Active Orders vs Completed Orders */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border shadow-xs">
-                <div className="flex p-1 bg-secondary/80 rounded-xl border border-border w-full sm:w-auto">
+                <div className="flex p-1 bg-secondary/80 rounded-xl border border-border w-full sm:w-auto overflow-x-auto scrollbar-none">
+                  <button
+                    onClick={() => {
+                      setOrderViewTab("all");
+                      setOrderFilterStatus("all");
+                    }}
+                    className={`flex-1 sm:flex-none py-2 px-3.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      orderViewTab === "all" && orderFilterStatus === "all"
+                        ? "bg-background shadow-xs text-foreground font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>All Orders ({ordersList.length})</span>
+                  </button>
+
                   <button
                     onClick={() => {
                       setOrderViewTab("active");
                       setOrderFilterStatus("all");
                     }}
-                    className={`flex-1 sm:flex-none py-2 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    className={`flex-1 sm:flex-none py-2 px-3.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                       orderViewTab === "active"
-                        ? "bg-background shadow-xs text-foreground font-bold"
+                        ? "bg-background shadow-xs text-amber-600 font-bold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -1159,28 +1179,29 @@ Best Regards,
                       setOrderViewTab("completed");
                       setOrderFilterStatus("all");
                     }}
-                    className={`flex-1 sm:flex-none py-2 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    className={`flex-1 sm:flex-none py-2 px-3.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                       orderViewTab === "completed"
                         ? "bg-background shadow-xs text-emerald-600 font-bold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Completed Orders ({completedOrdersCount})</span>
+                    <span>Completed ({completedOrdersCount})</span>
                   </button>
 
                   <button
                     onClick={() => {
-                      setOrderViewTab("all");
+                      setOrderViewTab("cancelled");
                       setOrderFilterStatus("all");
                     }}
-                    className={`flex-1 sm:flex-none py-2 px-4 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      orderViewTab === "all"
-                        ? "bg-background shadow-xs text-foreground font-bold"
+                    className={`flex-1 sm:flex-none py-2 px-3.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      orderViewTab === "cancelled"
+                        ? "bg-background shadow-xs text-red-600 font-bold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <span>All History ({ordersList.length})</span>
+                    <XCircle className="w-3.5 h-3.5 text-red-500" />
+                    <span>Cancelled Orders ({cancelledOrdersCount})</span>
                   </button>
                 </div>
 
@@ -1195,8 +1216,13 @@ Best Regards,
                       <CheckCircle2 className="w-3.5 h-3.5" /> Successfully delivered and archived orders
                     </span>
                   )}
+                  {orderViewTab === "cancelled" && (
+                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-medium">
+                      <XCircle className="w-3.5 h-3.5" /> Showing cancelled customer orders
+                    </span>
+                  )}
                   {orderViewTab === "all" && (
-                    <span>Complete order history across all sellers</span>
+                    <span>Complete order history across all sellers ({ordersList.length} total)</span>
                   )}
                 </div>
               </div>
@@ -1244,17 +1270,28 @@ Best Regards,
                 <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
                   <span className="text-muted-foreground font-semibold px-2">Status:</span>
                   {[
-                    { id: "all", label: "All" },
-                    { id: "pending", label: "Placed (New)" },
-                    { id: "processing", label: "Packed" },
-                    { id: "shipped", label: "Shipped" },
-                    { id: "out_for_delivery", label: "Out for Delivery" },
-                    { id: "delivered", label: "Delivered" },
-                    { id: "cancelled", label: "Cancelled" },
+                    { id: "all", label: `All (${ordersList.length})` },
+                    { id: "pending", label: `Placed (${ordersList.filter((o) => o.status === "pending" || !o.status).length})` },
+                    { id: "processing", label: `Packed (${ordersList.filter((o) => o.status === "processing").length})` },
+                    { id: "shipped", label: `Shipped (${ordersList.filter((o) => o.status === "shipped").length})` },
+                    { id: "out_for_delivery", label: `Out for Delivery (${ordersList.filter((o) => o.status === "out_for_delivery").length})` },
+                    { id: "delivered", label: `Delivered (${ordersList.filter((o) => o.status === "delivered").length})` },
+                    { id: "cancelled", label: `Cancelled (${cancelledOrdersCount})` },
                   ].map((st) => (
                     <button
                       key={st.id}
-                      onClick={() => setOrderFilterStatus(st.id)}
+                      onClick={() => {
+                        setOrderFilterStatus(st.id);
+                        if (st.id === "cancelled") {
+                          setOrderViewTab("cancelled");
+                        } else if (st.id === "delivered") {
+                          setOrderViewTab("completed");
+                        } else if (st.id === "all") {
+                          setOrderViewTab("all");
+                        } else {
+                          setOrderViewTab("active");
+                        }
+                      }}
                       className={`px-2.5 py-1 rounded-lg font-medium capitalize transition-all cursor-pointer whitespace-nowrap ${
                         orderFilterStatus === st.id
                           ? "bg-primary text-primary-foreground font-bold shadow-xs"
@@ -1441,6 +1478,25 @@ Best Regards,
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 <span>Mark Delivered</span>
+                              </Button>
+                            )}
+
+                            {order.status === "cancelled" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isUpdating}
+                                onClick={() =>
+                                  updateAdminOrder({
+                                    orderId: order.id,
+                                    storeId: order.storeId,
+                                    newStatus: "pending",
+                                  })
+                                }
+                                className="text-xs h-7.5 border-border hover:bg-secondary text-foreground font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-primary" />
+                                <span>Reopen / Restore Order</span>
                               </Button>
                             )}
                           </div>

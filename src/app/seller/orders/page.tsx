@@ -159,12 +159,13 @@ export default function SellerOrdersPage() {
         {/* Filter Tabs */}
         <div className="flex items-center gap-1 bg-muted p-1 rounded-lg text-xs overflow-x-auto scrollbar-none">
           {[
-            { id: "all", label: "All Orders" },
-            { id: "pending", label: "Placed (New)" },
-            { id: "processing", label: "Packed" },
-            { id: "shipped", label: "Shipped" },
-            { id: "out_for_delivery", label: "Out for Delivery" },
-            { id: "delivered", label: "Delivered" },
+            { id: "all", label: `All Orders (${orders.length})` },
+            { id: "pending", label: `Placed (${orders.filter((o) => o.status === "pending" || !o.status).length})` },
+            { id: "processing", label: `Packed (${orders.filter((o) => o.status === "processing").length})` },
+            { id: "shipped", label: `Shipped (${orders.filter((o) => o.status === "shipped").length})` },
+            { id: "out_for_delivery", label: `Out for Delivery (${orders.filter((o) => o.status === "out_for_delivery").length})` },
+            { id: "delivered", label: `Delivered (${orders.filter((o) => o.status === "delivered").length})` },
+            { id: "cancelled", label: `Cancelled (${orders.filter((o) => o.status === "cancelled").length})` },
           ].map((item) => (
             <button
               key={item.id}
@@ -385,6 +386,13 @@ export default function SellerOrdersPage() {
                         <div className="text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-lg flex items-center gap-2 font-medium">
                           <CheckCircle className="h-3.5 w-3.5 shrink-0" />
                           <span>Delivered to Customer — Confirmed by Web Controller</span>
+                        </div>
+                      )}
+
+                      {order.status === "cancelled" && (
+                        <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-lg flex items-center gap-2 font-medium">
+                          <XCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span>Order Cancelled</span>
                         </div>
                       )}
 
