@@ -52,12 +52,16 @@ export default function ProfilePage() {
     setSearchFeedback(null);
     try {
       const email = user?.email || profile?.email || "";
-      const phone =
+      let phone =
         user?.user_metadata?.phone ||
         user?.user_metadata?.contact_number ||
         (user?.email?.endsWith("@phone.afroder.com")
           ? user.email.replace("@phone.afroder.com", "")
           : "");
+
+      if (!phone && typeof window !== "undefined") {
+        phone = localStorage.getItem("afroder_customer_phone") || "";
+      }
 
       const params = new URLSearchParams();
       if (email && !email.endsWith("@phone.afroder.com")) {
@@ -68,6 +72,11 @@ export default function ProfilePage() {
       }
       if (customId) {
         params.append("orderId", customId.trim().toUpperCase());
+      } else if (typeof window !== "undefined") {
+        const recentOrderId = localStorage.getItem("afroder_last_order_id");
+        if (recentOrderId) {
+          params.append("orderId", recentOrderId.trim().toUpperCase());
+        }
       }
 
       const res = await fetch(`/api/orders/my-orders?${params.toString()}`);

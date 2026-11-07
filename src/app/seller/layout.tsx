@@ -61,8 +61,8 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       const activeStores = (storesList || []).filter((s) => !deletedSet.has(s.id));
 
       if (activeStores.length === 0) {
-        await signOut();
-        router.push("/auth?role=seller&mode=signin&status=no_store");
+        // Safe redirect: user is a customer without a store, redirect to their Profile & Orders
+        router.push("/profile");
         return;
       }
 
@@ -83,7 +83,6 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       });
 
       if (rejectedStore) {
-        await signOut();
         router.push("/auth?role=seller&mode=signin&status=rejected");
         return;
       }

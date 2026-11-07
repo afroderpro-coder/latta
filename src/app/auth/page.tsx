@@ -37,7 +37,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-export const normalizePhone = (phone: string): string => {
+const normalizePhone = (phone: string): string => {
   if (!phone) return "";
   const digits = phone.replace(/\D/g, "");
   if (digits.length > 10 && (digits.startsWith("91") || digits.startsWith("0"))) {
@@ -46,7 +46,7 @@ export const normalizePhone = (phone: string): string => {
   return digits;
 };
 
-export const phoneToAuthEmail = (phone: string): string => {
+const phoneToAuthEmail = (phone: string): string => {
   const clean = normalizePhone(phone);
   return `${clean}@phone.afroder.com`;
 };
@@ -69,7 +69,7 @@ export default function AuthPage({
   const resolvedParams = use(searchParams);
   const role = resolvedParams.role === "seller" ? "seller" : "client";
   const initialMode = resolvedParams.mode === "signup" ? "signup" : "signin";
-  const redirectTarget = resolvedParams.redirect || "/";
+  const redirectTarget = resolvedParams.redirect || (role === "seller" ? "/seller/dashboard" : "/profile");
 
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [error, setError] = useState<string | null>(
@@ -1799,13 +1799,9 @@ export default function AuthPage({
             <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to Store
           </Link>
 
-          {role === "seller" ? (
+          {role === "seller" && (
             <Link href="/auth?role=client" className="hover:text-foreground transition-colors">
               Customer Sign In
-            </Link>
-          ) : (
-            <Link href="/auth?role=seller" className="hover:text-foreground font-semibold transition-colors">
-              Seller Portal
             </Link>
           )}
         </div>

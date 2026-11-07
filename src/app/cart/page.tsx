@@ -197,6 +197,15 @@ export default function CartPage() {
         }),
       });
 
+      try {
+        localStorage.setItem("afroder_last_order_id", orderRef);
+        if (customerPhone.trim()) {
+          localStorage.setItem("afroder_customer_phone", customerPhone.trim());
+        }
+      } catch (e) {
+        console.warn("Could not save recent order to localStorage:", e);
+      }
+
       const data = await res.json();
       if (data.storeMap) {
         storeMap = data.storeMap;

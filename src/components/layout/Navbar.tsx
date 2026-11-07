@@ -4,11 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCartStore } from "@/store/useCartStore";
-import { ShoppingBag, User, LogOut, Search, Menu, X } from "lucide-react";
+import { ShoppingBag, User, LogOut, Search, Menu, X, Truck, Store } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/utils/supabase/client";
+import { parseStoreBio } from "@/utils/storeMetadata";
 
 export function Navbar() {
   const { user, profile, signOut } = useAuthStore();
@@ -16,6 +18,35 @@ export function Navbar() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hasSellerStore, setHasSellerStore] = useState(false);
+
+  useEffect(() => {
+    async function checkSellerStore() {
+      if (!user?.id) {
+        setHasSellerStore(false);
+        return;
+      }
+      try {
+        const { data } = await supabase
+          .from("stores")
+          .select("id, bio")
+          .eq("seller_id", user.id);
+
+        if (data && data.length > 0) {
+          const hasApproved = data.some((s) => {
+            const meta = parseStoreBio(s.bio);
+            return meta.approval_status === "approved";
+          });
+          setHasSellerStore(hasApproved);
+        } else {
+          setHasSellerStore(false);
+        }
+      } catch {
+        setHasSellerStore(false);
+      }
+    }
+    checkSellerStore();
+  }, [user?.id]);
 
   const cartItemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -82,22 +113,40 @@ export function Navbar() {
           {/* Desktop Auth */}
           <div className="hidden md:flex items-center">
             {user ? (
-              <div className="flex items-center space-x-1 lg:space-x-2">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={profile?.role === "seller" ? "/seller/dashboard" : "/profile"}>
-                    <User className="mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline-block">
-                      {profile?.role === "seller" ? "Dashboard" : (profile?.full_name || "Profile")}
-                    </span>
+              <div className="flex items-center space-x-1.5 lg:space-x-2.5">
+                {/* 1. Customer Orders & Delivery Status (Always goes to /profile) */}
+                <Button variant="ghost" size="sm" asChild className="font-semibold text-xs sm:text-sm">
+                  <Link href="/profile" className="flex items-center space-x-1.5 text-foreground hover:text-primary">
+                    <Truck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="hidden sm:inline-block">My Orders</span>
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" onClick={async () => { await signOut(); router.push('/'); }}>
-                  <LogOut className="h-4 w-4 text-muted-foreground" />
+
+                {/* 2. If verified seller with store, show Seller Studio */}
+                {hasSellerStore && (
+                  <Button variant="outline" size="sm" asChild className="hidden xl:inline-flex text-xs font-semibold rounded-full border-border">
+                    <Link href="/seller/dashboard">
+                      <Store className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                      <span>Seller Studio</span>
+                    </Link>
+                  </Button>
+                )}
+
+                {/* 3. Account / Profile icon */}
+                <Button variant="ghost" size="icon" asChild title="Account & Order Tracking">
+                  <Link href="/profile">
+                    <User className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                  </Link>
+                </Button>
+
+                {/* 4. Logout */}
+                <Button variant="ghost" size="icon" title="Sign Out" onClick={async () => { await signOut(); router.push('/'); }}>
+                  <LogOut className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                 </Button>
               </div>
             ) : (
-              <Link href="/auth?role=client">
-                <Button variant="ghost" size="sm">Login</Button>
+              <Link href="/auth?role=client&redirect=/profile">
+                <Button variant="ghost" size="sm" className="font-semibold">Login</Button>
               </Link>
             )}
           </div>
@@ -141,25 +190,43 @@ export function Navbar() {
             {user ? (
               <>
                 <Link 
-                  href={profile?.role === "seller" ? "/seller/dashboard" : "/profile"} 
-                  className="flex items-center text-lg font-medium"
+                  href="/profile" 
+                  className="flex items-center text-lg font-bold text-foreground"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Truck className="mr-3 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  <span>My Orders & Tracking</span>
+                </Link>
+                <Link 
+                  href="/profile" 
+                  className="flex items-center text-base font-medium text-muted-foreground"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <User className="mr-3 h-5 w-5" />
-                  {profile?.role === "seller" ? "Dashboard" : "Profile"}
+                  <span>Account ({user.email})</span>
                 </Link>
+                {hasSellerStore && (
+                  <Link 
+                    href="/seller/dashboard" 
+                    className="flex items-center text-base font-semibold text-primary"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Store className="mr-3 h-5 w-5" />
+                    <span>Seller Dashboard</span>
+                  </Link>
+                )}
                 <button 
                   onClick={async () => { await signOut(); setIsMobileMenuOpen(false); router.push('/'); }} 
-                  className="flex items-center text-lg font-medium text-destructive"
+                  className="flex items-center text-base font-medium text-destructive cursor-pointer text-left"
                 >
                   <LogOut className="mr-3 h-5 w-5" />
-                  Logout
+                  Sign Out
                 </button>
               </>
             ) : (
               <div className="flex flex-col space-y-3">
-                <Link href="/auth?role=client" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full h-12 text-lg rounded-full" variant="outline">Login</Button>
+                <Link href="/auth?role=client&redirect=/profile" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button className="w-full h-12 text-lg rounded-full" variant="outline">Login with Google</Button>
                 </Link>
               </div>
             )}
