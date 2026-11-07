@@ -40,6 +40,10 @@ import {
   Calendar,
   MapPin,
   MessageCircle,
+  Star,
+  ArrowUp,
+  ArrowDown,
+  ListOrdered,
 } from "lucide-react";
 
 interface SellerStoreRecord {
@@ -104,6 +108,11 @@ export default function SuperAdminPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "products" | "orders">("pending");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [productActionInProgress, setProductActionInProgress] = useState<string | null>(null);
+
+  // Homepage New Arrivals Curation State
+  const [curatedArrivalIds, setCuratedArrivalIds] = useState<string[]>([]);
+  const [isSavingCurated, setIsSavingCurated] = useState<boolean>(false);
+  const [curatedSuccessMsg, setCuratedSuccessMsg] = useState<string | null>(null);
 
   // WhatsApp Notification Modal State
   const [whatsAppModal, setWhatsAppModal] = useState<{
@@ -257,7 +266,20 @@ export default function SuperAdminPage() {
       }
     })();
 
-    await Promise.allSettled([productsTask, storesTask, ordersTask]);
+    // 4. Independent Task: Fetch curated homepage new arrivals sequence
+    const curatedTask = (async () => {
+      try {
+        const curRes = await fetch("/api/admin/new-arrivals");
+        const curJson = await curRes.json();
+        if (curJson.success && Array.isArray(curJson.productIds)) {
+          setCuratedArrivalIds(curJson.productIds);
+        }
+      } catch (e) {
+        console.warn("Could not fetch new arrivals sequence:", e);
+      }
+    })();
+
+    await Promise.allSettled([productsTask, storesTask, ordersTask, curatedTask]);
     setIsLoading(false);
   };
 
@@ -560,6 +582,63 @@ Best Regards,
     } finally {
       setProductActionInProgress(null);
     }
+  };
+
+  // ── Homepage New Arrivals Curation Handlers ──
+  const handleSaveCuratedNewArrivals = async (idsToSave?: string[]) => {
+    const list = idsToSave !== undefined ? idsToSave : curatedArrivalIds;
+    setIsSavingCurated(true);
+    setCuratedSuccessMsg(null);
+    try {
+      const res = await fetch("/api/admin/new-arrivals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productIds: list }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCuratedArrivalIds(list);
+        setCuratedSuccessMsg("Homepage New Arrivals sequence saved & live!");
+        setTimeout(() => setCuratedSuccessMsg(null), 3500);
+      } else {
+        alert("Failed to save sequence: " + (data.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("Error saving sequence: " + err.message);
+    } finally {
+      setIsSavingCurated(false);
+    }
+  };
+
+  const handleToggleProductInCurated = async (productId: string) => {
+    let next: string[];
+    if (curatedArrivalIds.includes(productId)) {
+      next = curatedArrivalIds.filter((id) => id !== productId);
+    } else {
+      next = [...curatedArrivalIds, productId];
+    }
+    setCuratedArrivalIds(next);
+    await handleSaveCuratedNewArrivals(next);
+  };
+
+  const handleMoveCuratedSequence = async (index: number, direction: "up" | "down") => {
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === curatedArrivalIds.length - 1) return;
+
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const next = [...curatedArrivalIds];
+    const temp = next[index];
+    next[index] = next[targetIndex];
+    next[targetIndex] = temp;
+
+    setCuratedArrivalIds(next);
+    await handleSaveCuratedNewArrivals(next);
+  };
+
+  const handleRemoveFromCurated = async (productId: string) => {
+    const next = curatedArrivalIds.filter((id) => id !== productId);
+    setCuratedArrivalIds(next);
+    await handleSaveCuratedNewArrivals(next);
   };
 
   // ── Order Management Handlers ──
@@ -1045,7 +1124,148 @@ Best Regards,
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* ── Homepage New Arrivals Curation Control Panel ── */}
+              <div className="rounded-2xl border-2 border-primary/25 bg-gradient-to-b from-primary/5 via-card to-card p-4 sm:p-5 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm sm:text-base font-bold text-foreground">
+                          Homepage &quot;New Arrivals&quot; Curation
+                        </h3>
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20">
+                          {curatedArrivalIds.length} Products Featured
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Only products selected here will appear on the homepage under &quot;New Arrivals&quot;, in this exact left-to-right sequence.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {curatedSuccessMsg && (
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Saved &amp; Live!</span>
+                      </span>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveCuratedNewArrivals()}
+                      disabled={isSavingCurated}
+                      className="rounded-xl font-bold text-xs h-9 cursor-pointer shadow-xs"
+                    >
+                      {isSavingCurated ? (
+                        <div className="flex items-center gap-1.5">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Publish Sequence</span>
+                        </div>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Curated Products Sequence Strip */}
+                {curatedArrivalIds.length === 0 ? (
+                  <div className="p-6 rounded-xl border border-dashed border-border text-center space-y-1.5 bg-background/50">
+                    <p className="text-xs font-semibold text-foreground">No products selected for Homepage New Arrivals yet</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Click &quot;+ Feature in New Arrivals&quot; on any product card in the catalog below to add it to the homepage!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Curated Sequence (Pos #1 is First on Homepage)</span>
+                      <span className="font-normal text-[11px] text-muted-foreground">
+                        Use ▲ ▼ to change order
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-1">
+                      {curatedArrivalIds.map((pId, idx) => {
+                        const prod = productsList.find((p) => p.id === pId);
+                        const img = prod?.image_urls?.[0];
+                        return (
+                          <div
+                            key={pId}
+                            className="relative rounded-xl border border-primary/30 bg-card p-2 shadow-xs flex flex-col justify-between group hover:border-primary transition-all"
+                          >
+                            {/* Position Number Badge */}
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-extrabold shadow-xs">
+                                #{idx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFromCurated(pId)}
+                                className="text-muted-foreground hover:text-destructive p-0.5 rounded cursor-pointer transition-colors"
+                                title="Remove from Homepage New Arrivals"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Thumbnail */}
+                            <div className="aspect-square w-full rounded-lg bg-secondary/50 overflow-hidden mb-1.5 relative border border-border/60">
+                              {img ? (
+                                <img src={img} alt={prod?.title || "Product"} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
+                                  No image
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Title & Price */}
+                            <div className="min-w-0 mb-2">
+                              <p className="text-xs font-bold text-foreground truncate" title={prod?.title}>
+                                {prod?.title || "Product"}
+                              </p>
+                              <p className="text-[11px] font-semibold text-muted-foreground">
+                                ₹{prod?.price || 0}
+                              </p>
+                            </div>
+
+                            {/* Move Sequence Buttons */}
+                            <div className="flex items-center gap-1 pt-1.5 border-t border-border/80">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveCuratedSequence(idx, "up")}
+                                disabled={idx === 0}
+                                className="flex-1 py-1 rounded-md bg-secondary hover:bg-secondary/80 disabled:opacity-30 disabled:pointer-events-none text-foreground flex items-center justify-center transition-all cursor-pointer"
+                                title="Move left / earlier in sequence"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveCuratedSequence(idx, "down")}
+                                disabled={idx === curatedArrivalIds.length - 1}
+                                className="flex-1 py-1 rounded-md bg-secondary hover:bg-secondary/80 disabled:opacity-30 disabled:pointer-events-none text-foreground flex items-center justify-center transition-all cursor-pointer"
+                                title="Move right / later in sequence"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
                 <span>
                   Showing <strong className="text-foreground">{filteredProducts.length}</strong> product{filteredProducts.length === 1 ? "" : "s"}
@@ -1057,11 +1277,15 @@ Best Regards,
                 {filteredProducts.map((product) => {
                   const img = product.image_urls?.[0];
                   const isActive = product.is_active !== false;
+                  const isCurated = curatedArrivalIds.includes(product.id);
+                  const curatedPos = isCurated ? curatedArrivalIds.indexOf(product.id) + 1 : -1;
 
                   return (
                     <div
                       key={product.id}
-                      className="bg-card rounded-2xl border border-border overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group"
+                      className={`bg-card rounded-2xl border overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group ${
+                        isCurated ? "border-primary/60 ring-1 ring-primary/40" : "border-border"
+                      }`}
                     >
                       {/* Product Thumbnail */}
                       <div className="relative aspect-square w-full bg-secondary/40 overflow-hidden flex items-center justify-center">
@@ -1080,6 +1304,12 @@ Best Regards,
 
                         {/* Status Badges on Image */}
                         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">
+                          {isCurated && (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-primary text-primary-foreground backdrop-blur-md shadow-xs flex items-center gap-1">
+                              <Star className="w-2.5 h-2.5 fill-current" />
+                              <span>Arrival #{curatedPos}</span>
+                            </span>
+                          )}
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-md shadow-xs ${
                               isActive
@@ -1135,7 +1365,28 @@ Best Regards,
                         </div>
 
                         {/* Controller Action Buttons */}
-                        <div className="pt-2 border-t border-border flex items-center justify-between gap-2">
+                        <div className="pt-2 border-t border-border space-y-2">
+                          {/* Feature in Homepage New Arrivals Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProductInCurated(product.id)}
+                            disabled={isSavingCurated}
+                            className={`w-full py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
+                              isCurated
+                                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "bg-secondary hover:bg-primary/10 hover:text-primary text-foreground border border-border"
+                            }`}
+                            title={isCurated ? "Click to remove from Homepage New Arrivals" : "Click to feature in Homepage New Arrivals"}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${isCurated ? "fill-primary-foreground text-primary-foreground" : "text-muted-foreground"}`} />
+                            <span>
+                              {isCurated
+                                ? `In New Arrivals (Pos #${curatedPos})`
+                                : "+ Feature in New Arrivals"}
+                            </span>
+                          </button>
+
+                          <div className="flex items-center justify-between gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -1177,8 +1428,9 @@ Best Regards,
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
               </div>
             </div>
           )

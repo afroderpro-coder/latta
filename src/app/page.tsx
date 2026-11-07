@@ -6,6 +6,7 @@ import HeroVisualSlider from "@/components/ui/HeroVisualSlider";
 
 import { parseStoreBio } from "@/utils/storeMetadata";
 import staticDeletedStores from "@/data/deleted_stores.json";
+import staticNewArrivals from "@/data/new_arrivals.json";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700", "900"] });
 
@@ -13,14 +14,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function HomePage() {
-  // Fetch active products with store info
-  const { data: dbProducts } = await supabase
-    .from("products")
-    .select("*, stores(shop_name)")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(12);
-
+  // 1. Fetch stores
   const { data: rawDbStores } = await supabase
     .from("stores")
     .select("*")
@@ -33,6 +27,59 @@ export default async function HomePage() {
     const meta = parseStoreBio(s.bio);
     return meta.approval_status === "approved";
   }).slice(0, 4);
+
+  // 2. Discover curated New Arrivals sequence from Web Controller
+  let curatedIds: string[] = [];
+  // First check if any store (especially AFRODER BRAND) holds curated_new_arrivals
+  (rawDbStores || []).forEach((s) => {
+    if (curatedIds.length === 0 && s.bio) {
+      const meta = parseStoreBio(s.bio);
+      if (Array.isArray(meta.curated_new_arrivals) && meta.curated_new_arrivals.length > 0) {
+        curatedIds = meta.curated_new_arrivals;
+      }
+    }
+  });
+
+  // Fallback to static/server new_arrivals.json if not in store bio
+  if (curatedIds.length === 0 && Array.isArray(staticNewArrivals) && staticNewArrivals.length > 0) {
+    curatedIds = staticNewArrivals;
+  }
+
+  // 3. Fetch products: If curatedIds are defined by Web Controller, fetch specifically those products
+  let activeProducts: any[] = [];
+  if (curatedIds.length > 0) {
+    const { data: curatedDbProducts } = await supabase
+      .from("products")
+      .select("*, stores(shop_name)")
+      .in("id", curatedIds)
+      .eq("is_active", true);
+
+    const validCurated = (curatedDbProducts || []).filter(
+      (p: any) => !p.store_id || !deletedSet.has(p.store_id)
+    );
+
+    // Strictly sort by the curated sequence set by the Web Controller
+    const orderMap = new Map(curatedIds.map((id, index) => [id, index]));
+    validCurated.sort(
+      (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)
+    );
+
+    activeProducts = validCurated;
+  }
+
+  // Fallback: If no curated products found or none active, fetch newest active products
+  if (activeProducts.length === 0) {
+    const { data: dbProducts } = await supabase
+      .from("products")
+      .select("*, stores(shop_name)")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(12);
+
+    activeProducts = (dbProducts || []).filter(
+      (p: any) => !p.store_id || !deletedSet.has(p.store_id)
+    );
+  }
 
   const dummyProducts = [
     {
@@ -72,9 +119,6 @@ export default async function HomePage() {
     { id: "4", shop_name: "Comfort Co", bio: "Loungewear redefined." }
   ];
 
-  const activeProducts = (dbProducts || []).filter(
-    (p: any) => !p.store_id || !deletedSet.has(p.store_id)
-  );
   const products = activeProducts.length > 0 ? activeProducts : dummyProducts;
   const stores = dbStores && dbStores.length > 0 ? dbStores : dummyStores;
 

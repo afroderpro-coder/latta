@@ -61,6 +61,8 @@ export interface StoreMetadata {
   payment_id?: string;
   is_verified?: boolean;
   paid_at?: string;
+  // Homepage curation
+  curated_new_arrivals?: string[];
 }
 
 export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata {
@@ -100,6 +102,11 @@ export function parseStoreBio(rawBio: string | null | undefined): StoreMetadata 
         payment_amount: parsed.payment_amount,
         payment_receipt_url: parsed.payment_receipt_url || "",
         payment_utr: parsed.payment_utr || "",
+        curated_new_arrivals: Array.isArray(parsed.curated_new_arrivals)
+          ? parsed.curated_new_arrivals
+          : Array.isArray(parsed.new_arrivals)
+          ? parsed.new_arrivals
+          : undefined,
       };
     }
   } catch {
@@ -138,6 +145,7 @@ export function serializeStoreBio(meta: Partial<StoreMetadata>): string {
     payment_amount: meta.payment_amount,
     payment_receipt_url: meta.payment_receipt_url || "",
     payment_utr: meta.payment_utr || "",
+    curated_new_arrivals: Array.isArray(meta.curated_new_arrivals) ? meta.curated_new_arrivals : undefined,
   });
 }
 
