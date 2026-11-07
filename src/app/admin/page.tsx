@@ -1586,6 +1586,19 @@ Best Regards,
                               <div className="text-muted-foreground flex items-start gap-1.5 pt-0.5">
                                 <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground" />
                                 <span className="text-xs leading-relaxed">{order.delivery_address}</span>
+                                <a
+                                  href={
+                                    order.delivery_address.startsWith("http")
+                                      ? order.delivery_address
+                                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.delivery_address)}`
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline text-[11px] shrink-0 font-medium inline-flex items-center gap-0.5 ml-1"
+                                  title="Open delivery location in Google Maps"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
                               </div>
                             )}
                             {order.customer_notes && (
@@ -1821,8 +1834,23 @@ Best Regards,
                         </div>
 
                         {store.meta.location && (
-                          <div className="flex items-center space-x-2 text-xs">
-                            <span>Location: {store.meta.location}</span>
+                          <div className="flex items-center space-x-1.5 text-xs">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                            <span className="text-muted-foreground">Location:</span>
+                            <a
+                              href={
+                                store.meta.location.startsWith("http")
+                                  ? store.meta.location
+                                  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.meta.location)}`
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+                              title="View store location in Google Maps"
+                            >
+                              <span>{store.meta.location}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
                           </div>
                         )}
 

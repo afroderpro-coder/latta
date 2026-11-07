@@ -274,9 +274,25 @@ export default function SellerOrdersPage() {
 
                     {order.delivery_address && (
                       <div className="space-y-1 md:border-l md:border-border md:pl-4">
-                        <div className="font-semibold text-foreground flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 text-primary" />
-                          <span>Delivery Address</span>
+                        <div className="font-semibold text-foreground flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-primary" />
+                            <span>Delivery Address</span>
+                          </div>
+                          <a
+                            href={
+                              order.delivery_address.startsWith("http")
+                                ? order.delivery_address
+                                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.delivery_address)}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-primary hover:underline font-semibold inline-flex items-center gap-1"
+                            title="Open delivery location on Google Maps"
+                          >
+                            <span>Open Maps</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         </div>
                         <p className="text-muted-foreground line-clamp-2">
                           {order.delivery_address}

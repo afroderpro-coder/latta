@@ -22,6 +22,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { parseStoreBio, serializeStoreBio, StoreMetadata } from "@/utils/storeMetadata";
+import { LocationPicker } from "@/components/ui/LocationPicker";
 
 export default function StoreSettingsPage() {
   const { profile, setProfile } = useAuthStore();
@@ -670,31 +671,16 @@ export default function StoreSettingsPage() {
           </div>
         </div>
 
-        {/* ── Section 4: Location & Direct Navigation (Left during registration — update here!) ── */}
+        {/* ── Section 4: Location & Direct Navigation (Live GPS, Google Maps or Manual) ── */}
         <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div className="flex items-center gap-2 font-semibold text-lg">
-              <MapPin className="h-5 w-5 text-primary" />
-              <span>Shop Location & Physical Boutique</span>
-            </div>
-            <span className="text-xs text-muted-foreground">Maps Navigation</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-1.5">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>Physical Address or Google Maps Location</span>
-            </label>
-            <Input
-              placeholder="e.g. Shop #07, Market Complex, Main Road, Nuh, Haryana 122105"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="h-11"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Enter your retail address or paste a Google Maps share link. Customers visiting your storefront can tap to get GPS directions directly to your shop.
-            </p>
-          </div>
+          <LocationPicker
+            mode="shop"
+            value={location}
+            onChange={(newLoc) => setLocation(newLoc)}
+            label="Shop Location & Physical Boutique"
+            placeholder="e.g. Shop #07, Market Complex, Main Road, Nuh, Haryana 122105 OR paste Google Maps share link"
+            helperText="Enter your physical boutique address, paste a Google Maps link, or click 'Live GPS Location' above. Customers visiting your public storefront can tap to get turn-by-turn Google Maps driving directions directly to your shop."
+          />
         </div>
 
         {/* Status Message */}

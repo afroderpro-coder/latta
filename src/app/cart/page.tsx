@@ -29,6 +29,7 @@ import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { GoogleLoginPromptModal } from "@/components/auth/GoogleLoginPromptModal";
+import { LocationPicker } from "@/components/ui/LocationPicker";
 // Order saving is now handled server-side via /api/orders/save
 
 const WHATSAPP_ORDER_NUMBER = "919671016500";
@@ -909,16 +910,15 @@ export default function CartPage() {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    <span>Delivery Address & City *</span>
-                  </label>
-                  <Input
-                    placeholder="e.g. Flat 302, Green Heights, Bandra, Mumbai - 400050"
+                <div className="pt-1">
+                  <LocationPicker
+                    mode="customer"
+                    compact
                     value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    required
+                    onChange={(loc) => setDeliveryAddress(loc)}
+                    label="Delivery Address & City *"
+                    placeholder="e.g. Flat 302, Green Heights, Bandra West, Mumbai 400050"
+                    helperText="Tap 'Live GPS Location' above to automatically fill your address, or type manually."
                   />
                 </div>
 
