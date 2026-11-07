@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { serializeStoreBio } from "@/utils/storeMetadata";
+import { ProductCategoryAndSizePicker } from "@/components/seller/ProductCategoryAndSizePicker";
 
 const productSchema = z.object({
   title: z.string().min(2, "Title is required (minimum 2 characters)."),
@@ -44,8 +45,6 @@ const productSchema = z.object({
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
-
-const AVAILABLE_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 
 export default function NewProductPage() {
   const { profile } = useAuthStore();
@@ -170,14 +169,6 @@ export default function NewProductPage() {
     } catch (e) {
       console.warn("Failed to clear draft:", e);
     }
-  };
-
-  const toggleSize = (size: string) => {
-    setSelectedSizes((prev) => {
-      const updated = prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size];
-      setValue("sizes", updated);
-      return updated;
-    });
   };
 
   const handleMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -436,26 +427,22 @@ export default function NewProductPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Category *</label>
-              <Input list="category-options" placeholder="T-Shirt, Jeans, Shirt..." {...register("category")} />
-              <datalist id="category-options">
-                <option value="T-Shirt" />
-                <option value="Shirt" />
-                <option value="Jeans" />
-                <option value="Lower" />
-                <option value="Jacket" />
-                <option value="Formal Pants" />
-                <option value="Hoodie" />
-                <option value="Complete Wear" />
-              </datalist>
-              {errors.category && <p className="text-sm text-red-500 font-medium">{errors.category.message}</p>}
+              <label className="text-sm font-medium">Brand (Optional)</label>
+              <Input placeholder="e.g. Acme, Rolex, Nike..." {...register("brand")} />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Brand (Optional)</label>
-            <Input placeholder="e.g. Acme" {...register("brand")} />
-          </div>
+          {/* ── Dynamic Category & Matching Measurements ── */}
+          <ProductCategoryAndSizePicker
+            category={watch("category")}
+            onCategoryChange={(cat) => setValue("category", cat, { shouldValidate: true })}
+            selectedSizes={selectedSizes}
+            onSizesChange={(sizes) => {
+              setSelectedSizes(sizes);
+              setValue("sizes", sizes, { shouldValidate: true });
+            }}
+            categoryError={errors.category?.message}
+          />
 
           {/* ── Multiple Product Images (4 to 5 Photos) ── */}
           <div className="space-y-3 pt-2 border-t border-border">
@@ -541,41 +528,6 @@ export default function NewProductPage() {
                 </label>
               )}
             </div>
-          </div>
-
-          {/* ── Available Sizes (Interactive Pill Buttons) ── */}
-          <div className="space-y-3 pt-2 border-t border-border">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Available Sizes</label>
-              {selectedSizes.length > 0 && (
-                <span className="text-xs text-primary font-medium">
-                  {selectedSizes.length} size(s) selected ({selectedSizes.join(", ")})
-                </span>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2.5">
-              {AVAILABLE_SIZES.map((size) => {
-                const isSelected = selectedSizes.includes(size);
-                return (
-                  <button
-                    key={size}
-                    type="button"
-                    onClick={() => toggleSize(size)}
-                    className={`inline-flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary"
-                        : "bg-background border-border text-foreground hover:bg-muted hover:border-foreground/30"
-                    }`}
-                  >
-                    {isSelected && <Check className="w-3.5 h-3.5" />}
-                    <span>{size}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Click the sizes in stock for this product.
-            </p>
           </div>
 
           {/* ── Error Banner ── */}

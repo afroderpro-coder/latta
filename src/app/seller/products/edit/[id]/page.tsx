@@ -13,6 +13,7 @@ import { Loader2, ArrowLeft, Upload, X, Star, Plus, AlertCircle, ArrowRight, Sto
 import Link from "next/link";
 import { use } from "react";
 import { serializeStoreBio } from "@/utils/storeMetadata";
+import { ProductCategoryAndSizePicker } from "@/components/seller/ProductCategoryAndSizePicker";
 
 const productSchema = z.object({
   title: z.string().min(2, "Title is required."),
@@ -46,6 +47,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     register,
     handleSubmit,
     watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<ProductFormValues>({
@@ -196,12 +198,6 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     });
   };
 
-  const toggleSize = (size: string) => {
-    setSelectedSizes((prev) =>
-      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
-    );
-  };
-
   const onSubmit = async (data: ProductFormValues) => {
     setIsSaving(true);
     setError(null);
@@ -319,26 +315,22 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Category *</label>
-              <Input list="category-options" {...register("category")} />
-              <datalist id="category-options">
-                <option value="T-Shirt" />
-                <option value="Shirt" />
-                <option value="Jeans" />
-                <option value="Lower" />
-                <option value="Jacket" />
-                <option value="Formal Pants" />
-                <option value="Hoodie" />
-                <option value="Complete Wear" />
-              </datalist>
-              {errors.category && <p className="text-sm text-red-500">{errors.category.message}</p>}
+              <label className="text-sm font-medium">Brand (Optional)</label>
+              <Input placeholder="e.g. Acme, Rolex, Nike..." {...register("brand")} />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Brand (Optional)</label>
-            <Input {...register("brand")} />
-          </div>
+          {/* ── Dynamic Category & Matching Measurements ── */}
+          <ProductCategoryAndSizePicker
+            category={watch("category") || ""}
+            onCategoryChange={(cat) => setValue("category", cat, { shouldValidate: true })}
+            selectedSizes={selectedSizes}
+            onSizesChange={(sizes) => {
+              setSelectedSizes(sizes);
+              setValue("sizes", sizes);
+            }}
+            categoryError={errors.category?.message}
+          />
 
           {/* ── Multiple Product Images (4 to 5 Photos) ── */}
           <div className="space-y-3 pt-2 border-t border-border">
@@ -419,23 +411,6 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                   )}
                 </label>
               )}
-            </div>
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-border">
-            <label className="text-sm font-medium">Available Sizes</label>
-            <div className="flex flex-wrap gap-4">
-              {['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].map((size) => (
-                <label key={size} className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedSizes.includes(size)}
-                    onChange={() => toggleSize(size)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm font-medium">{size}</span>
-                </label>
-              ))}
             </div>
           </div>
 

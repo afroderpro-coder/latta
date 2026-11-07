@@ -11,21 +11,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 import { GoogleLoginPromptModal } from "@/components/auth/GoogleLoginPromptModal";
-
-function getApparelType(title?: string, description?: string, category?: string): string {
-  const text = `${title || ""} ${description || ""} ${category || ""}`.toLowerCase();
-  if (/\b(polo|shirt|shirts)\b/.test(text)) return "shirt";
-  if (/\b(t-?shirt|tee|tees)\b/.test(text)) return "T-shirt";
-  if (/\b(pant|pants|trouser|trousers)\b/.test(text)) return "pants";
-  if (/\b(jean|jeans|denim)\b/.test(text)) return "jeans";
-  if (/\b(cargo|cargos)\b/.test(text)) return "cargos";
-  if (/\b(short|shorts)\b/.test(text)) return "shorts";
-  if (/\b(hoodie|hoodies|sweatshirt)\b/.test(text)) return "hoodie";
-  if (/\b(jacket|jackets|coat)\b/.test(text)) return "jacket";
-  if (/\b(kurta|kurti)\b/.test(text)) return "kurta";
-  if (/\b(shoe|shoes|sneaker|sneakers)\b/.test(text)) return "shoes";
-  return "item";
-}
+import { detectCategoryConfig, getProductTypeNoun, isFreeSizeOrSingle } from "@/utils/productCategories";
 
 const fallbackRelatedProducts = [
   {
@@ -100,6 +86,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       if (currentProduct) {
         setProduct(currentProduct);
 
+        // Auto-select size if product has a single size or Free Size option
+        if (Array.isArray(currentProduct.sizes) && currentProduct.sizes.length === 1) {
+          setSelectedSize(currentProduct.sizes[0]);
+        }
+
         // 2. Fetch related products from active listings excluding this product
         const { data: dbRelated } = await supabase
           .from("products")
@@ -147,11 +138,19 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const images: string[] = Array.isArray(product.image_urls) ? product.image_urls : [];
-  const apparelType = getApparelType(product.title, product.description, product.category);
-  const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+  const config = detectCategoryConfig(product.category || product.title);
+  const productTypeNoun = getProductTypeNoun(product.title, product.description, product.category);
+  const hasMultipleSizes = Array.isArray(product.sizes) && product.sizes.length > 1;
+  const isSingleSize = Array.isArray(product.sizes) && product.sizes.length === 1;
 
   const validateSizeSelection = (): boolean => {
-    if (hasSizes && !selectedSize) {
+    // If only 1 size option exists, auto-select it and proceed
+    if (isSingleSize && !selectedSize && product.sizes?.[0]) {
+      setSelectedSize(product.sizes[0]);
+      return true;
+    }
+
+    if (hasMultipleSizes && !selectedSize) {
       setSizeError(true);
       setShowSizePopup(true);
       setShakeKey((prev) => prev + 1);
@@ -233,8 +232,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             <p className="text-xs sm:text-sm font-medium tracking-tight truncate">
-              Please select your size of{" "}
-              <span className="font-bold text-amber-300 capitalize">{apparelType}</span> to proceed
+              Please select your {config.unitLabel.toLowerCase()} of{" "}
+              <span className="font-bold text-amber-300 capitalize">{productTypeNoun}</span> to proceed
             </p>
 
             <button
@@ -348,7 +347,25 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <p>{product.description || "No description provided."}</p>
           </div>
 
-          {hasSizes && (
+          {/* ── Single Size / Free Size Display ── */}
+          {isSingleSize && (
+            <div className="mb-6 p-3.5 rounded-2xl border border-border/80 bg-secondary/30 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {config.unitLabel}:
+                </span>
+                <span className="px-3 py-1 rounded-lg bg-foreground text-background font-bold text-xs shadow-xs">
+                  {product.sizes[0]}
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <Check className="w-3.5 h-3.5" /> Ready in Stock
+              </span>
+            </div>
+          )}
+
+          {/* ── Multiple Sizes Selector ── */}
+          {hasMultipleSizes && (
             <motion.div
               ref={sizeSectionRef}
               key={shakeKey}
@@ -363,10 +380,10 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold tracking-tight text-foreground">
-                    Select Size
+                    {config.label}
                   </h3>
                   <span className="text-xs text-muted-foreground font-normal">
-                    (Required)
+                    ({config.unitLabel})
                   </span>
                 </div>
                 {selectedSize ? (
@@ -412,7 +429,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>
-                    Please select your size of {apparelType} ({product.sizes.join(", ")}) before adding to cart or buying!
+                    Please select your {config.unitLabel.toLowerCase()} of {productTypeNoun} ({product.sizes.join(", ")}) before adding to cart or buying!
                   </span>
                 </motion.div>
               )}
@@ -429,7 +446,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               >
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>Please select your size of {apparelType} above.</span>
+                  <span>Please select your {config.unitLabel.toLowerCase()} of {productTypeNoun} above.</span>
                 </div>
                 <button
                   type="button"

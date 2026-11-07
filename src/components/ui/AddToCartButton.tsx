@@ -25,7 +25,8 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
   const [isAdded, setIsAdded] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authActionText, setAuthActionText] = useState("add this item to your cart");
-  const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+  const needsSizeSelection = Array.isArray(product.sizes) && product.sizes.length > 1;
+  const singleSize = Array.isArray(product.sizes) && product.sizes.length === 1 ? product.sizes[0] : null;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -38,19 +39,22 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       return;
     }
 
-    if (hasSizes) {
+    if (needsSizeSelection) {
       router.push(`/product/${product.id}`);
       return;
     }
 
+    const itemId = singleSize ? `${product.id}-${singleSize}` : product.id;
+
     addItem({
-      id: product.id,
+      id: itemId,
       productId: product.id,
       storeId: product.store_id || "unknown",
       name: product.title,
       price: product.price,
       quantity: 1,
       imageUrl: product.image_urls?.[0] || "",
+      variant: singleSize ? { size: singleSize, color: "" } : undefined,
     });
 
     setIsAdded(true);
@@ -70,7 +74,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       return;
     }
 
-    if (hasSizes) {
+    if (needsSizeSelection) {
       router.push(`/product/${product.id}`);
       return;
     }
@@ -91,7 +95,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
               ? "border-[#16a34a] bg-[#e6f7ec] text-[#14532d] shadow-xs"
               : "border-foreground/80 bg-background text-foreground hover:bg-foreground hover:text-background hover:border-foreground shadow-2xs"
           }`}
-          title={hasSizes ? "Select Size" : "Add to Cart"}
+          title={needsSizeSelection ? "Select Size" : "Add to Cart"}
         >
           {isAdded ? (
             <>
@@ -101,8 +105,8 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
           ) : (
             <>
               <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-              <span className="hidden min-[360px]:inline truncate">{hasSizes ? "Select Size" : "Add to Cart"}</span>
-              <span className="min-[360px]:hidden truncate">{hasSizes ? "Size" : "Add"}</span>
+              <span className="hidden min-[360px]:inline truncate">{needsSizeSelection ? "Select Size" : "Add to Cart"}</span>
+              <span className="min-[360px]:hidden truncate">{needsSizeSelection ? "Size" : "Add"}</span>
             </>
           )}
         </button>
@@ -124,7 +128,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         actionText={authActionText}
-        redirectUrl={hasSizes ? `/product/${product.id}` : "/cart"}
+        redirectUrl={needsSizeSelection ? `/product/${product.id}` : "/cart"}
       />
     </>
   );
