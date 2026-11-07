@@ -1025,49 +1025,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Account Type Selection */}
-                <div className="space-y-2 pt-2 border-t border-border">
-                  <label className="text-xs font-semibold text-foreground block">
-                    Account Mode
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setEditRole("client")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        editRole === "client"
-                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                          : "border-border bg-background hover:bg-secondary/40"
-                      }`}
-                    >
-                      <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                        <span>🛍️ Customer Account</span>
-                        {editRole === "client" && <Check className="w-3 h-3 text-primary" />}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Shop items, track parcel delivery & order history
-                      </p>
-                    </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setEditRole("seller")}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        editRole === "seller"
-                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                          : "border-border bg-background hover:bg-secondary/40"
-                      }`}
-                    >
-                      <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                        <span>🏪 Seller Merchant</span>
-                        {editRole === "seller" && <Check className="w-3 h-3 text-primary" />}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        For brand owners managing verified storefronts
-                      </p>
-                    </button>
-                  </div>
-                </div>
 
                 <div className="flex items-center gap-3 pt-3">
                   <Button
