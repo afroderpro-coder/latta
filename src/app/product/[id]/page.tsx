@@ -8,7 +8,7 @@ import { useCartStore } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut, Move } from "lucide-react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 import { GoogleLoginPromptModal } from "@/components/auth/GoogleLoginPromptModal";
 import { detectCategoryConfig, getProductTypeNoun, isFreeSizeOrSingle } from "@/utils/productCategories";
@@ -60,6 +60,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sizeSectionRef = useRef<HTMLDivElement>(null);
   const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const zoomX = useMotionValue(0);
+  const zoomY = useMotionValue(0);
+  const zoomScale = useMotionValue(1);
+  const [zoomConstraints, setZoomConstraints] = useState({ left: -420, right: 420, top: -480, bottom: 480 });
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
@@ -80,6 +85,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
     setShakeKey(0);
     setSelectedImageIndex(0);
+    zoomScale.set(1);
+    zoomX.set(0);
+    zoomY.set(0);
     setIsZoomed(false);
     setIsLoading(true);
 
@@ -121,6 +129,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
     loadProductAndRelated();
   }, [unwrappedParams.id]);
+
+  useEffect(() => {
+    zoomScale.set(1);
+    zoomX.set(0);
+    zoomY.set(0);
+    setIsZoomed(false);
+  }, [selectedImageIndex]);
 
   const scroll = (direction: "left" | "right") => {
     if (scrollContainerRef.current) {
@@ -198,6 +213,65 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       isDraggingSwipe.current = false;
       isDraggingPan.current = false;
     }, 60);
+  };
+
+  const zoomToPoint = (clientX: number, clientY: number) => {
+    const container = imageContainerRef.current;
+    if (!container) {
+      animate(zoomScale, 2.6, { type: "spring", stiffness: 280, damping: 28 });
+      setIsZoomed(true);
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    const scaleVal = 2.6;
+
+    const maxPanX = Math.round((w * scaleVal - w) / 2);
+    const maxPanY = Math.round((h * scaleVal - h) / 2);
+
+    const clickOffsetX = clientX - (rect.left + w / 2);
+    const clickOffsetY = clientY - (rect.top + h / 2);
+
+    let targetX = -clickOffsetX * scaleVal;
+    let targetY = -clickOffsetY * scaleVal;
+
+    targetX = Math.max(-maxPanX, Math.min(maxPanX, targetX));
+    targetY = Math.max(-maxPanY, Math.min(maxPanY, targetY));
+
+    setZoomConstraints({
+      left: -maxPanX,
+      right: maxPanX,
+      top: -maxPanY,
+      bottom: maxPanY,
+    });
+
+    animate(zoomScale, scaleVal, { type: "spring", stiffness: 280, damping: 28 });
+    animate(zoomX, targetX, { type: "spring", stiffness: 280, damping: 28 });
+    animate(zoomY, targetY, { type: "spring", stiffness: 280, damping: 28 });
+    setIsZoomed(true);
+  };
+
+  const zoomOut = () => {
+    animate(zoomScale, 1, { type: "spring", stiffness: 280, damping: 28 });
+    animate(zoomX, 0, { type: "spring", stiffness: 280, damping: 28 });
+    animate(zoomY, 0, { type: "spring", stiffness: 280, damping: 28 });
+    setIsZoomed(false);
+  };
+
+  const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDraggingPan.current || isDraggingSwipe.current) return;
+
+    if (isZoomed) {
+      zoomOut();
+    } else {
+      const container = imageContainerRef.current;
+      const rect = container?.getBoundingClientRect();
+      const clientX = e.clientX || touchStartX.current || (rect ? rect.left + rect.width / 2 : 0);
+      const clientY = e.clientY || touchStartY.current || (rect ? rect.top + rect.height / 2 : 0);
+      zoomToPoint(clientX, clientY);
+    }
   };
 
   const validateSizeSelection = (): boolean => {
@@ -324,6 +398,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         {/* Product Images Gallery */}
         <div className="flex flex-col space-y-4">
           <motion.div
+            ref={imageContainerRef}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className={`aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group select-none flex items-center justify-center ${
@@ -335,19 +410,12 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           >
             {images.length > 0 ? (
               <motion.div
-                key={`gallery-${selectedImageIndex}-${isZoomed ? "zoomed" : "normal"}`}
-                initial={{ opacity: 0.92 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0.92 }}
-                transition={{ duration: 0.2 }}
+                key={selectedImageIndex}
+                style={{ x: zoomX, y: zoomY, scale: zoomScale }}
                 drag={isZoomed ? true : images.length > 1 ? "x" : false}
-                dragConstraints={
-                  isZoomed
-                    ? { left: -420, right: 420, top: -480, bottom: 480 }
-                    : { left: 0, right: 0 }
-                }
-                dragElastic={isZoomed ? 0.15 : 0.25}
-                dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 25 } : undefined}
+                dragConstraints={isZoomed ? zoomConstraints : { left: 0, right: 0 }}
+                dragElastic={isZoomed ? 0.12 : 0.22}
+                dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 28 } : undefined}
                 onDragStart={() => {
                   isDraggingPan.current = true;
                 }}
@@ -368,18 +436,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 className={`w-full h-full flex items-center justify-center ${
                   isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
                 }`}
-                onClick={() => {
-                  if (isDraggingPan.current || isDraggingSwipe.current) return;
-                  setIsZoomed((prev) => !prev);
-                }}
-                title={isZoomed ? "Click to zoom out • Drag to pan" : "Click to zoom in"}
+                onClick={handleImageClick}
+                title={isZoomed ? "Click to zoom out • Drag to pan" : "Click to zoom in on any detail"}
               >
                 <img
                   src={images[selectedImageIndex] || images[0]}
                   alt={product.title}
-                  className={`w-full h-full object-cover select-none pointer-events-none transition-transform duration-200 ${
-                    isZoomed ? "scale-[2.6]" : "scale-100"
-                  }`}
+                  className="w-full h-full object-cover select-none pointer-events-none"
                   draggable={false}
                 />
               </motion.div>
@@ -403,7 +466,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setIsZoomed(false);
+                        zoomOut();
                       }}
                       className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/85 hover:bg-black text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 z-20 cursor-pointer"
                       title="Exit Zoom"
@@ -417,7 +480,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsZoomed(true);
+                      const container = imageContainerRef.current;
+                      if (container) {
+                        const rect = container.getBoundingClientRect();
+                        zoomToPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                      } else {
+                        zoomToPoint(0, 0);
+                      }
                     }}
                     className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur-md transition-all shadow-md z-10 cursor-pointer group-hover:scale-105"
                     title="Zoom in to inspect fine details"
@@ -460,7 +529,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   type="button"
                   onClick={() => {
                     setSelectedImageIndex(idx);
-                    setIsZoomed(false);
+                    zoomOut();
                   }}
                   className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/10 transition-all cursor-pointer ${
                     selectedImageIndex === idx
