@@ -361,8 +361,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     const clickOffsetX = clientX - (rect.left + w / 2);
     const clickOffsetY = clientY - (rect.top + h / 2);
 
-    let targetX = -clickOffsetX * scaleVal;
-    let targetY = -clickOffsetY * scaleVal;
+    const panFactor = scaleVal - 1;
+    let targetX = -clickOffsetX * panFactor;
+    let targetY = -clickOffsetY * panFactor;
 
     targetX = Math.max(-maxPanX, Math.min(maxPanX, targetX));
     targetY = Math.max(-maxPanY, Math.min(maxPanY, targetY));
@@ -544,22 +545,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  style={isZoomed ? { x: zoomX, y: zoomY, scale: zoomScale } : {}}
-                  drag={isZoomed ? true : images.length > 1 ? "x" : false}
-                  dragConstraints={isZoomed ? zoomConstraints : { left: 0, right: 0 }}
-                  dragElastic={isZoomed ? 0.12 : 0.25}
-                  dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 28 } : undefined}
-                  onDragStart={() => {
-                    isDraggingPan.current = true;
-                  }}
+                  drag={!isZoomed && images.length > 1 ? "x" : false}
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.25}
                   onDragEnd={(e, info) => {
-                    if (isZoomed) {
-                      const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
-                      if (dragDist < 6) {
-                        // Tap without drag while zoomed -> zoom out smoothly!
-                        zoomOut();
-                      }
-                    } else if (images.length > 1) {
+                    if (!isZoomed && images.length > 1) {
                       const swipeX = info.offset.x;
                       const velocityX = info.velocity.x;
                       if (swipeX < -40 || velocityX < -0.3) {
@@ -568,23 +558,44 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                         paginate(-1);
                       }
                     }
-                    setTimeout(() => {
-                      isDraggingPan.current = false;
-                    }, 80);
                   }}
-                  className={`w-full h-full absolute inset-0 flex items-center justify-center ${
-                    isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
-                  }`}
-                  onClick={handleImageClick}
-                  onDoubleClick={handleDoubleClick}
-                  title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click to zoom in • Swipe to change photos"}
+                  className="w-full h-full absolute inset-0 overflow-hidden flex items-center justify-center select-none"
                 >
-                  <img
-                    src={images[selectedImageIndex] || images[0]}
-                    alt={product.title}
-                    className="w-full h-full object-cover select-none pointer-events-none"
-                    draggable={false}
-                  />
+                  {/* Inner Zoom & Pan Engine - contained 100% inside the slide */}
+                  <motion.div
+                    style={{ x: zoomX, y: zoomY, scale: zoomScale }}
+                    drag={isZoomed ? true : false}
+                    dragConstraints={zoomConstraints}
+                    dragElastic={0.12}
+                    dragTransition={{ bounceStiffness: 450, bounceDamping: 28 }}
+                    onDragStart={() => {
+                      isDraggingPan.current = true;
+                    }}
+                    onDragEnd={(e, info) => {
+                      if (isZoomed) {
+                        const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
+                        if (dragDist < 6) {
+                          zoomOut();
+                        }
+                      }
+                      setTimeout(() => {
+                        isDraggingPan.current = false;
+                      }, 80);
+                    }}
+                    className={`w-full h-full flex items-center justify-center ${
+                      isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
+                    }`}
+                    onClick={handleImageClick}
+                    onDoubleClick={handleDoubleClick}
+                    title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click or click to zoom in • Swipe to change photos"}
+                  >
+                    <img
+                      src={images[selectedImageIndex] || images[0]}
+                      alt={product.title}
+                      className="w-full h-full object-cover select-none pointer-events-none"
+                      draggable={false}
+                    />
+                  </motion.div>
                 </motion.div>
               </AnimatePresence>
             ) : (
