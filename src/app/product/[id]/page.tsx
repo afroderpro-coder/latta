@@ -65,6 +65,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const touchEndX = useRef<number | null>(null);
   const touchEndY = useRef<number | null>(null);
   const isDraggingSwipe = useRef(false);
+  const isDraggingPan = useRef(false);
   const addItem = useCartStore((state) => state.addItem);
   const { user } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -151,49 +152,52 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const isSingleSize = Array.isArray(product.sizes) && product.sizes.length === 1;
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isZoomed) return;
     touchStartX.current = e.targetTouches[0].clientX;
     touchStartY.current = e.targetTouches[0].clientY;
     touchEndX.current = null;
     touchEndY.current = null;
     isDraggingSwipe.current = false;
+    isDraggingPan.current = false;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (isZoomed) return;
     touchEndX.current = e.targetTouches[0].clientX;
     touchEndY.current = e.targetTouches[0].clientY;
-    if (touchStartX.current !== null) {
+    if (touchStartX.current !== null && touchEndX.current !== null) {
       const diffX = Math.abs(touchEndX.current - touchStartX.current);
-      if (diffX > 10) {
-        isDraggingSwipe.current = true;
+      const diffY = Math.abs((touchEndY.current || 0) - (touchStartY.current || 0));
+      if (diffX > 8 || diffY > 8) {
+        if (!isZoomed) {
+          isDraggingSwipe.current = true;
+        } else {
+          isDraggingPan.current = true;
+        }
       }
     }
   };
 
   const handleTouchEnd = () => {
-    if (isZoomed || touchStartX.current === null || touchEndX.current === null) {
-      touchStartX.current = null;
-      touchEndX.current = null;
-      return;
-    }
-    const deltaX = touchStartX.current - touchEndX.current;
-    const deltaY = Math.abs((touchStartY.current || 0) - (touchEndY.current || 0));
+    if (!isZoomed && touchStartX.current !== null && touchEndX.current !== null) {
+      const deltaX = touchStartX.current - touchEndX.current;
+      const deltaY = Math.abs((touchStartY.current || 0) - (touchEndY.current || 0));
 
-    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > deltaY) {
-      if (deltaX > 0) {
-        // Swiped left -> Next image
-        setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-      } else {
-        // Swiped right -> Previous image
-        setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > deltaY) {
+        if (deltaX > 0) {
+          // Swiped left -> Next image
+          setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+        } else {
+          // Swiped right -> Previous image
+          setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+        }
       }
     }
+
     touchStartX.current = null;
     touchEndX.current = null;
     setTimeout(() => {
       isDraggingSwipe.current = false;
-    }, 50);
+      isDraggingPan.current = false;
+    }, 60);
   };
 
   const validateSizeSelection = (): boolean => {
@@ -344,6 +348,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 }
                 dragElastic={isZoomed ? 0.15 : 0.25}
                 dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 25 } : undefined}
+                onDragStart={() => {
+                  isDraggingPan.current = true;
+                }}
                 onDragEnd={(e, info) => {
                   if (!isZoomed && images.length > 1) {
                     if (info.offset.x < -45) {
@@ -354,15 +361,18 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
                     }
                   }
+                  setTimeout(() => {
+                    isDraggingPan.current = false;
+                  }, 60);
                 }}
                 className={`w-full h-full flex items-center justify-center ${
-                  isZoomed ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
+                  isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
                 }`}
                 onClick={() => {
-                  if (!isZoomed && !isDraggingSwipe.current) {
-                    setIsZoomed(true);
-                  }
+                  if (isDraggingPan.current || isDraggingSwipe.current) return;
+                  setIsZoomed((prev) => !prev);
                 }}
+                title={isZoomed ? "Click to zoom out • Drag to pan" : "Click to zoom in"}
               >
                 <img
                   src={images[selectedImageIndex] || images[0]}
@@ -386,7 +396,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   <>
                     <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md text-white text-[11px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 z-20 pointer-events-none shadow-md">
                       <Move className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Pan 360° to inspect details</span>
+                      <span>Pan to explore • Click to zoom out</span>
                     </div>
 
                     <button
