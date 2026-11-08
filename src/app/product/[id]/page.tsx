@@ -55,6 +55,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [showSizePopup, setShowSizePopup] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -274,28 +275,62 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     lastTapTimeRef.current = now;
     lastTapPosRef.current = { x: currentX, y: currentY };
 
-    // Horizontal carousel swipe when unzoomed
-    if (!isZoomed && touchStartX.current !== null && touchEndX.current !== null) {
-      const deltaX = touchStartX.current - touchEndX.current;
-      const deltaY = Math.abs((touchStartY.current || 0) - (touchEndY.current || 0));
-
-      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > deltaY) {
-        if (deltaX > 0) {
-          // Swiped left -> Next image
-          setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-        } else {
-          // Swiped right -> Previous image
-          setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
-        }
-      }
-    }
-
     touchStartX.current = null;
     touchEndX.current = null;
     setTimeout(() => {
       isDraggingSwipe.current = false;
       isDraggingPan.current = false;
     }, 80);
+  };
+
+  const paginate = (newDirection: number) => {
+    if (isZoomed) return;
+    if (newDirection > 0) {
+      if (selectedImageIndex < images.length - 1) {
+        setDirection(1);
+        setSelectedImageIndex((prev) => prev + 1);
+      }
+    } else {
+      if (selectedImageIndex > 0) {
+        setDirection(-1);
+        setSelectedImageIndex((prev) => prev - 1);
+      }
+    }
+  };
+
+  const onSelectThumbnail = (idx: number) => {
+    if (idx === selectedImageIndex) return;
+    setDirection(idx > selectedImageIndex ? 1 : -1);
+    setSelectedImageIndex(idx);
+    zoomOut();
+  };
+
+  const slideVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? "100%" : dir < 0 ? "-100%" : 0,
+      opacity: 0.3,
+      scale: 0.94,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      scale: 1,
+      transition: {
+        x: { type: "spring" as const, stiffness: 320, damping: 32 },
+        opacity: { duration: 0.28 },
+        scale: { duration: 0.28 },
+      },
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? "-100%" : "100%",
+      opacity: 0.3,
+      scale: 0.94,
+      transition: {
+        x: { type: "spring" as const, stiffness: 320, damping: 32 },
+        opacity: { duration: 0.28 },
+        scale: { duration: 0.28 },
+      },
+    }),
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -501,50 +536,57 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             onTouchEnd={handleTouchEnd}
           >
             {images.length > 0 ? (
-              <motion.div
-                key={selectedImageIndex}
-                style={{ x: zoomX, y: zoomY, scale: zoomScale }}
-                drag={isZoomed ? true : images.length > 1 ? "x" : false}
-                dragConstraints={isZoomed ? zoomConstraints : { left: 0, right: 0 }}
-                dragElastic={isZoomed ? 0.12 : 0.22}
-                dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 28 } : undefined}
-                onDragStart={() => {
-                  isDraggingPan.current = true;
-                }}
-                onDragEnd={(e, info) => {
-                  if (isZoomed) {
-                    const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
-                    if (dragDist < 6) {
-                      // Tap without drag while zoomed -> zoom out smoothly!
-                      zoomOut();
+              <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                <motion.div
+                  key={selectedImageIndex}
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  style={isZoomed ? { x: zoomX, y: zoomY, scale: zoomScale } : {}}
+                  drag={isZoomed ? true : images.length > 1 ? "x" : false}
+                  dragConstraints={isZoomed ? zoomConstraints : { left: 0, right: 0 }}
+                  dragElastic={isZoomed ? 0.12 : 0.25}
+                  dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 28 } : undefined}
+                  onDragStart={() => {
+                    isDraggingPan.current = true;
+                  }}
+                  onDragEnd={(e, info) => {
+                    if (isZoomed) {
+                      const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
+                      if (dragDist < 6) {
+                        // Tap without drag while zoomed -> zoom out smoothly!
+                        zoomOut();
+                      }
+                    } else if (images.length > 1) {
+                      const swipeX = info.offset.x;
+                      const velocityX = info.velocity.x;
+                      if (swipeX < -40 || velocityX < -0.3) {
+                        paginate(1);
+                      } else if (swipeX > 40 || velocityX > 0.3) {
+                        paginate(-1);
+                      }
                     }
-                  } else if (images.length > 1) {
-                    if (info.offset.x < -45) {
-                      // Swiped left -> next image
-                      setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-                    } else if (info.offset.x > 45) {
-                      // Swiped right -> prev image
-                      setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
-                    }
-                  }
-                  setTimeout(() => {
-                    isDraggingPan.current = false;
-                  }, 80);
-                }}
-                className={`w-full h-full flex items-center justify-center ${
-                  isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
-                }`}
-                onClick={handleImageClick}
-                onDoubleClick={handleDoubleClick}
-                title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click to zoom in on any detail"}
-              >
-                <img
-                  src={images[selectedImageIndex] || images[0]}
-                  alt={product.title}
-                  className="w-full h-full object-cover select-none pointer-events-none"
-                  draggable={false}
-                />
-              </motion.div>
+                    setTimeout(() => {
+                      isDraggingPan.current = false;
+                    }, 80);
+                  }}
+                  className={`w-full h-full absolute inset-0 flex items-center justify-center ${
+                    isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
+                  }`}
+                  onClick={handleImageClick}
+                  onDoubleClick={handleDoubleClick}
+                  title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click to zoom in • Swipe to change photos"}
+                >
+                  <img
+                    src={images[selectedImageIndex] || images[0]}
+                    alt={product.title}
+                    className="w-full h-full object-cover select-none pointer-events-none"
+                    draggable={false}
+                  />
+                </motion.div>
+              </AnimatePresence>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
                 No Image Available
@@ -600,19 +642,21 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             {images.length > 1 && !isZoomed && (
               <>
                 {/* Pagination Dots */}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md pointer-events-none">
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-md pointer-events-none shadow-md">
                   {images.map((_, i) => (
-                    <span
+                    <motion.span
                       key={i}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        selectedImageIndex === i ? "w-5 bg-white" : "w-1.5 bg-white/50"
+                      layout
+                      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                      className={`h-2 rounded-full transition-colors duration-300 ${
+                        selectedImageIndex === i ? "w-6 bg-white" : "w-2 bg-white/45"
                       }`}
                     />
                   ))}
                 </div>
 
                 {/* Counter Badge */}
-                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur text-white text-xs px-2.5 py-1 rounded-full font-medium z-10 pointer-events-none">
+                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md text-white text-xs px-2.5 py-1 rounded-full font-medium z-20 pointer-events-none shadow">
                   {selectedImageIndex + 1} / {images.length}
                 </div>
               </>
@@ -626,10 +670,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => {
-                    setSelectedImageIndex(idx);
-                    zoomOut();
-                  }}
+                  onClick={() => onSelectThumbnail(idx)}
                   className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/10 transition-all cursor-pointer ${
                     selectedImageIndex === idx
                       ? "border-primary ring-2 ring-primary/20 scale-105"
