@@ -6,7 +6,7 @@ import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut, Move } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
@@ -60,6 +60,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sizeSectionRef = useRef<HTMLDivElement>(null);
   const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
+  const isDraggingSwipe = useRef(false);
   const addItem = useCartStore((state) => state.addItem);
   const { user } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -144,6 +149,52 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const productTypeNoun = getProductTypeNoun(product.title, product.description, product.category);
   const hasMultipleSizes = Array.isArray(product.sizes) && product.sizes.length > 1;
   const isSingleSize = Array.isArray(product.sizes) && product.sizes.length === 1;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isZoomed) return;
+    touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
+    touchEndX.current = null;
+    touchEndY.current = null;
+    isDraggingSwipe.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isZoomed) return;
+    touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
+    if (touchStartX.current !== null) {
+      const diffX = Math.abs(touchEndX.current - touchStartX.current);
+      if (diffX > 10) {
+        isDraggingSwipe.current = true;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isZoomed || touchStartX.current === null || touchEndX.current === null) {
+      touchStartX.current = null;
+      touchEndX.current = null;
+      return;
+    }
+    const deltaX = touchStartX.current - touchEndX.current;
+    const deltaY = Math.abs((touchStartY.current || 0) - (touchEndY.current || 0));
+
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > deltaY) {
+      if (deltaX > 0) {
+        // Swiped left -> Next image
+        setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+      } else {
+        // Swiped right -> Previous image
+        setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+      }
+    }
+    touchStartX.current = null;
+    touchEndX.current = null;
+    setTimeout(() => {
+      isDraggingSwipe.current = false;
+    }, 50);
+  };
 
   const validateSizeSelection = (): boolean => {
     // If only 1 size option exists, auto-select it and proceed
@@ -271,63 +322,119 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group flex items-center justify-center select-none"
+            className={`aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group select-none flex items-center justify-center ${
+              isZoomed ? "touch-none" : "touch-pan-y"
+            }`}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             {images.length > 0 ? (
-              <img
-                src={images[selectedImageIndex] || images[0]}
-                alt={product.title}
-                onClick={() => setIsZoomed((prev) => !prev)}
-                className={`w-full h-full object-contain scale-[1.06] transition-transform duration-300 ${
-                  isZoomed ? "scale-[1.45] cursor-zoom-out" : "cursor-zoom-in"
+              <motion.div
+                key={`gallery-${selectedImageIndex}-${isZoomed ? "zoomed" : "normal"}`}
+                initial={{ opacity: 0.92 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0.92 }}
+                transition={{ duration: 0.2 }}
+                drag={isZoomed ? true : images.length > 1 ? "x" : false}
+                dragConstraints={
+                  isZoomed
+                    ? { left: -420, right: 420, top: -480, bottom: 480 }
+                    : { left: 0, right: 0 }
+                }
+                dragElastic={isZoomed ? 0.15 : 0.25}
+                dragTransition={isZoomed ? { bounceStiffness: 450, bounceDamping: 25 } : undefined}
+                onDragEnd={(e, info) => {
+                  if (!isZoomed && images.length > 1) {
+                    if (info.offset.x < -45) {
+                      // Swiped left -> next image
+                      setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+                    } else if (info.offset.x > 45) {
+                      // Swiped right -> prev image
+                      setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+                    }
+                  }
+                }}
+                className={`w-full h-full flex items-center justify-center ${
+                  isZoomed ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
                 }`}
-              />
+                onClick={() => {
+                  if (!isZoomed && !isDraggingSwipe.current) {
+                    setIsZoomed(true);
+                  }
+                }}
+              >
+                <img
+                  src={images[selectedImageIndex] || images[0]}
+                  alt={product.title}
+                  className={`w-full h-full object-cover select-none pointer-events-none transition-transform duration-200 ${
+                    isZoomed ? "scale-[2.6]" : "scale-100"
+                  }`}
+                  draggable={false}
+                />
+              </motion.div>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
                 No Image Available
               </div>
             )}
 
-            {/* Quick Zoom In / Zoom Out Toggle Button */}
+            {/* Top Overlay Controls: 360° Pan Hint & Zoom In/Out Buttons */}
             {images.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsZoomed((prev) => !prev)}
-                className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow z-10 cursor-pointer"
-                title={isZoomed ? "Zoom out (Fit whole product)" : "Zoom in (Inspect details)"}
-              >
-                {isZoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
-              </button>
+              <>
+                {isZoomed ? (
+                  <>
+                    <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md text-white text-[11px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 z-20 pointer-events-none shadow-md">
+                      <Move className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Pan 360° to inspect details</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsZoomed(false);
+                      }}
+                      className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/85 hover:bg-black text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 z-20 cursor-pointer"
+                      title="Exit Zoom"
+                    >
+                      <ZoomOut className="h-3.5 w-3.5" />
+                      <span>Exit Zoom</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsZoomed(true);
+                    }}
+                    className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur-md transition-all shadow-md z-10 cursor-pointer group-hover:scale-105"
+                    title="Zoom in to inspect fine details"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </button>
+                )}
+              </>
             )}
 
-            {/* Prev / Next controls for multiple images */}
-            {images.length > 1 && (
+            {/* Bottom Controls: Carousel Dots & Image Counter (No Arrows!) */}
+            {images.length > 1 && !isZoomed && (
               <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
-                    setIsZoomed(false);
-                  }}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow z-10 cursor-pointer"
-                  title="Previous image"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-                    setIsZoomed(false);
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow z-10 cursor-pointer"
-                  title="Next image"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
+                {/* Pagination Dots */}
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md pointer-events-none">
+                  {images.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        selectedImageIndex === i ? "w-5 bg-white" : "w-1.5 bg-white/50"
+                      }`}
+                    />
+                  ))}
+                </div>
 
                 {/* Counter Badge */}
-                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur text-white text-xs px-2.5 py-1 rounded-full font-medium z-10">
+                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur text-white text-xs px-2.5 py-1 rounded-full font-medium z-10 pointer-events-none">
                   {selectedImageIndex + 1} / {images.length}
                 </div>
               </>
