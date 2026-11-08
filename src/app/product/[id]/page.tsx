@@ -271,15 +271,15 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="aspect-square sm:aspect-[4/5] bg-secondary/15 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group flex items-center justify-center p-3 sm:p-5 select-none"
+            className="aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group flex items-center justify-center select-none"
           >
             {images.length > 0 ? (
               <img
                 src={images[selectedImageIndex] || images[0]}
                 alt={product.title}
                 onClick={() => setIsZoomed((prev) => !prev)}
-                className={`w-full h-full object-contain transition-transform duration-300 ${
-                  isZoomed ? "scale-150 cursor-zoom-out" : "cursor-zoom-in"
+                className={`w-full h-full object-contain scale-[1.06] transition-transform duration-300 ${
+                  isZoomed ? "scale-[1.45] cursor-zoom-out" : "cursor-zoom-in"
                 }`}
               />
             ) : (
@@ -345,13 +345,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                     setSelectedImageIndex(idx);
                     setIsZoomed(false);
                   }}
-                  className={`relative aspect-square sm:aspect-[3/4] w-18 sm:w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/15 p-1 transition-all cursor-pointer ${
+                  className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/10 transition-all cursor-pointer ${
                     selectedImageIndex === idx
                       ? "border-primary ring-2 ring-primary/20 scale-105"
                       : "border-border opacity-70 hover:opacity-100"
                   }`}
                 >
-                  <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-contain" />
+                  <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
