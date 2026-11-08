@@ -519,3 +519,4 @@ export function ShopClient({ initialProducts, curatedArrivalIds = [] }: ShopClie
     </div>
   );
 }
+

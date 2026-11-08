@@ -6,7 +6,7 @@ import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X } from "lucide-react";
+import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
@@ -55,6 +55,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [showSizePopup, setShowSizePopup] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isZoomed, setIsZoomed] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sizeSectionRef = useRef<HTMLDivElement>(null);
@@ -73,6 +74,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
     setShakeKey(0);
     setSelectedImageIndex(0);
+    setIsZoomed(false);
     setIsLoading(true);
 
     async function loadProductAndRelated() {
@@ -269,18 +271,33 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="aspect-[4/5] bg-muted rounded-2xl overflow-hidden relative border border-border group"
+            className="aspect-square sm:aspect-[4/5] bg-secondary/15 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group flex items-center justify-center p-3 sm:p-5 select-none"
           >
             {images.length > 0 ? (
               <img
                 src={images[selectedImageIndex] || images[0]}
                 alt={product.title}
-                className="w-full h-full object-cover transition-all duration-300"
+                onClick={() => setIsZoomed((prev) => !prev)}
+                className={`w-full h-full object-contain transition-transform duration-300 ${
+                  isZoomed ? "scale-150 cursor-zoom-out" : "cursor-zoom-in"
+                }`}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
                 No Image Available
               </div>
+            )}
+
+            {/* Quick Zoom In / Zoom Out Toggle Button */}
+            {images.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsZoomed((prev) => !prev)}
+                className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow z-10 cursor-pointer"
+                title={isZoomed ? "Zoom out (Fit whole product)" : "Zoom in (Inspect details)"}
+              >
+                {isZoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+              </button>
             )}
 
             {/* Prev / Next controls for multiple images */}
@@ -288,23 +305,29 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               <>
                 <button
                   type="button"
-                  onClick={() => setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1))}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow"
+                  onClick={() => {
+                    setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+                    setIsZoomed(false);
+                  }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow z-10 cursor-pointer"
                   title="Previous image"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow"
+                  onClick={() => {
+                    setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+                    setIsZoomed(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur transition-all opacity-80 group-hover:opacity-100 shadow z-10 cursor-pointer"
                   title="Next image"
                 >
                   <ChevronRight className="h-5 w-5" />
                 </button>
 
                 {/* Counter Badge */}
-                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur text-white text-xs px-2.5 py-1 rounded-full font-medium">
+                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur text-white text-xs px-2.5 py-1 rounded-full font-medium z-10">
                   {selectedImageIndex + 1} / {images.length}
                 </div>
               </>
@@ -318,14 +341,17 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setSelectedImageIndex(idx)}
-                  className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                  onClick={() => {
+                    setSelectedImageIndex(idx);
+                    setIsZoomed(false);
+                  }}
+                  className={`relative aspect-square sm:aspect-[3/4] w-18 sm:w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/15 p-1 transition-all cursor-pointer ${
                     selectedImageIndex === idx
                       ? "border-primary ring-2 ring-primary/20 scale-105"
                       : "border-border opacity-70 hover:opacity-100"
                   }`}
                 >
-                  <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                  <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-contain" />
                 </button>
               ))}
             </div>
