@@ -71,6 +71,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const touchEndY = useRef<number | null>(null);
   const isDraggingSwipe = useRef(false);
   const isDraggingPan = useRef(false);
+  const lastTapTimeRef = useRef<number>(0);
+  const lastTapPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const initialPinchDistanceRef = useRef<number | null>(null);
+  const initialPinchScaleRef = useRef<number>(1);
+  const isPinchingRef = useRef<boolean>(false);
   const addItem = useCartStore((state) => state.addItem);
   const { user } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -166,19 +171,59 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const hasMultipleSizes = Array.isArray(product.sizes) && product.sizes.length > 1;
   const isSingleSize = Array.isArray(product.sizes) && product.sizes.length === 1;
 
+  const getTouchDistance = (t1: React.Touch, t2: React.Touch) => {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.targetTouches[0].clientX;
-    touchStartY.current = e.targetTouches[0].clientY;
-    touchEndX.current = null;
-    touchEndY.current = null;
-    isDraggingSwipe.current = false;
-    isDraggingPan.current = false;
+    if (e.touches.length === 2) {
+      // 2-finger pinch gesture start
+      isPinchingRef.current = true;
+      const dist = getTouchDistance(e.touches[0], e.touches[1]);
+      initialPinchDistanceRef.current = dist;
+      initialPinchScaleRef.current = zoomScale.get();
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      touchEndX.current = null;
+      touchEndY.current = null;
+      isDraggingSwipe.current = false;
+      isDraggingPan.current = false;
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.targetTouches[0].clientX;
-    touchEndY.current = e.targetTouches[0].clientY;
-    if (touchStartX.current !== null && touchEndX.current !== null) {
+    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null) {
+      // Real-time 2-finger pinch zoom
+      isPinchingRef.current = true;
+      const currentDist = getTouchDistance(e.touches[0], e.touches[1]);
+      const pinchRatio = currentDist / initialPinchDistanceRef.current;
+      const newScale = Math.min(3.8, Math.max(0.85, initialPinchScaleRef.current * pinchRatio));
+      zoomScale.set(newScale);
+
+      const container = imageContainerRef.current;
+      if (container && newScale > 1.05) {
+        const rect = container.getBoundingClientRect();
+        const maxPanX = Math.round((rect.width * newScale - rect.width) / 2);
+        const maxPanY = Math.round((rect.height * newScale - rect.height) / 2);
+        setZoomConstraints({
+          left: -maxPanX,
+          right: maxPanX,
+          top: -maxPanY,
+          bottom: maxPanY,
+        });
+      }
+      return;
+    }
+
+    if (e.touches.length === 1 && touchStartX.current !== null) {
+      touchEndX.current = e.touches[0].clientX;
+      touchEndY.current = e.touches[0].clientY;
       const diffX = Math.abs(touchEndX.current - touchStartX.current);
       const diffY = Math.abs((touchEndY.current || 0) - (touchStartY.current || 0));
       if (diffX > 8 || diffY > 8) {
@@ -192,6 +237,44 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleTouchEnd = () => {
+    if (isPinchingRef.current) {
+      isPinchingRef.current = false;
+      initialPinchDistanceRef.current = null;
+      const currentScale = zoomScale.get();
+      if (currentScale < 1.15) {
+        zoomOut();
+      } else {
+        setIsZoomed(true);
+        const clampedScale = Math.min(3.5, Math.max(1.2, currentScale));
+        animate(zoomScale, clampedScale, { type: "spring", stiffness: 300, damping: 28 });
+      }
+      return;
+    }
+
+    // Double-tap detection (within 320ms and 35px)
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTimeRef.current;
+    const currentX = touchStartX.current || 0;
+    const currentY = touchStartY.current || 0;
+    const distFromLastTap = Math.sqrt(
+      Math.pow(currentX - lastTapPosRef.current.x, 2) + Math.pow(currentY - lastTapPosRef.current.y, 2)
+    );
+
+    if (timeSinceLastTap < 320 && distFromLastTap < 35 && !isDraggingSwipe.current && !isDraggingPan.current) {
+      // Double tap recognized!
+      if (isZoomed) {
+        zoomOut();
+      } else {
+        zoomToPoint(currentX, currentY);
+      }
+      lastTapTimeRef.current = 0;
+      return;
+    }
+
+    lastTapTimeRef.current = now;
+    lastTapPosRef.current = { x: currentX, y: currentY };
+
+    // Horizontal carousel swipe when unzoomed
     if (!isZoomed && touchStartX.current !== null && touchEndX.current !== null) {
       const deltaX = touchStartX.current - touchEndX.current;
       const deltaY = Math.abs((touchStartY.current || 0) - (touchEndY.current || 0));
@@ -212,7 +295,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     setTimeout(() => {
       isDraggingSwipe.current = false;
       isDraggingPan.current = false;
-    }, 60);
+    }, 80);
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (isZoomed) {
+      zoomOut();
+    } else {
+      zoomToPoint(e.clientX, e.clientY);
+    }
   };
 
   const zoomToPoint = (clientX: number, clientY: number) => {
@@ -420,7 +512,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   isDraggingPan.current = true;
                 }}
                 onDragEnd={(e, info) => {
-                  if (!isZoomed && images.length > 1) {
+                  if (isZoomed) {
+                    const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
+                    if (dragDist < 6) {
+                      // Tap without drag while zoomed -> zoom out smoothly!
+                      zoomOut();
+                    }
+                  } else if (images.length > 1) {
                     if (info.offset.x < -45) {
                       // Swiped left -> next image
                       setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
@@ -431,13 +529,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   }
                   setTimeout(() => {
                     isDraggingPan.current = false;
-                  }, 60);
+                  }, 80);
                 }}
                 className={`w-full h-full flex items-center justify-center ${
                   isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
                 }`}
                 onClick={handleImageClick}
-                title={isZoomed ? "Click to zoom out • Drag to pan" : "Click to zoom in on any detail"}
+                onDoubleClick={handleDoubleClick}
+                title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click to zoom in on any detail"}
               >
                 <img
                   src={images[selectedImageIndex] || images[0]}
@@ -459,7 +558,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   <>
                     <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md text-white text-[11px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 z-20 pointer-events-none shadow-md">
                       <Move className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Pan to explore • Click to zoom out</span>
+                      <span>Double-tap or pinch to exit • Drag to pan</span>
                     </div>
 
                     <button
@@ -468,7 +567,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                         e.stopPropagation();
                         zoomOut();
                       }}
-                      className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/85 hover:bg-black text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 z-20 cursor-pointer"
+                      className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/90 hover:bg-black text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 z-20 cursor-pointer active:scale-95"
                       title="Exit Zoom"
                     >
                       <ZoomOut className="h-3.5 w-3.5" />
