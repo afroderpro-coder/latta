@@ -21,7 +21,7 @@ const getSupabaseAdmin = () => {
 const ROOT_FILE_PATH = path.join(process.cwd(), ".new_arrivals.json");
 const SRC_FILE_PATH = path.join(process.cwd(), "src", "data", "new_arrivals.json");
 
-export function getLocalCuratedIds(): string[] {
+function getLocalCuratedIds(): string[] {
   try {
     if (fs.existsSync(ROOT_FILE_PATH)) {
       const content = fs.readFileSync(ROOT_FILE_PATH, "utf-8");
@@ -45,7 +45,7 @@ export function getLocalCuratedIds(): string[] {
   return Array.isArray(staticNewArrivals) ? staticNewArrivals : [];
 }
 
-export function saveLocalCuratedIds(ids: string[]) {
+function saveLocalCuratedIds(ids: string[]) {
   try {
     fs.writeFileSync(ROOT_FILE_PATH, JSON.stringify(ids, null, 2), "utf-8");
   } catch (e) {
@@ -180,3 +180,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+

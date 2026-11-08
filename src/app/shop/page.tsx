@@ -1,33 +1,68 @@
+import { Suspense } from "react";
 import { supabase } from "@/utils/supabase/client";
-import { Card } from "@/components/ui/Card";
-import { AddToCartButton } from "@/components/ui/AddToCartButton";
-import Link from "next/link";
 import staticDeletedStores from "@/data/deleted_stores.json";
-
-// Helper: compute MRP and discount from a sale price
-function getPricingInfo(price: number) {
-  // Simulate a discount between 10%–40% for demo purposes
-  const discountTiers = [10, 15, 20, 25, 30, 40];
-  const discount = discountTiers[Math.floor(price * 7) % discountTiers.length];
-  const mrp = Math.ceil(price / (1 - discount / 100));
-  return { mrp, discount };
-}
+import staticNewArrivals from "@/data/new_arrivals.json";
+import { parseStoreBio } from "@/utils/storeMetadata";
+import { ShopClient, ShopProduct } from "@/components/shop/ShopClient";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function ShopLoadingSkeleton() {
+  return (
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-pulse">
+      <div className="flex gap-2 overflow-x-hidden py-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="h-9 w-24 bg-muted rounded-full shrink-0" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          <div key={i} className="aspect-[3/4] bg-muted rounded-xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function ShopPage() {
+  // 1. Fetch all active products
   const { data: dbProducts } = await supabase
     .from("products")
-    .select("*, stores(shop_name)")
+    .select("*, stores(id, shop_name)")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  const dummyProducts = [
+  // 2. Fetch stores to discover curated New Arrivals and filter deleted stores
+  const { data: rawDbStores } = await supabase
+    .from("stores")
+    .select("id, shop_name, bio")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const deletedSet = new Set<string>(staticDeletedStores || []);
+
+  // 3. Discover curated New Arrivals sequence from Web Controller
+  let curatedIds: string[] = [];
+  (rawDbStores || []).forEach((s) => {
+    if (curatedIds.length === 0 && s.bio) {
+      const meta = parseStoreBio(s.bio);
+      if (Array.isArray(meta.curated_new_arrivals) && meta.curated_new_arrivals.length > 0) {
+        curatedIds = meta.curated_new_arrivals;
+      }
+    }
+  });
+
+  if (curatedIds.length === 0 && Array.isArray(staticNewArrivals)) {
+    curatedIds = staticNewArrivals;
+  }
+
+  const dummyProducts: ShopProduct[] = [
     {
       id: "1",
       title: "Essential Oversized Tee",
       price: 35.00,
+      category: "T-Shirt",
       image_urls: ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80"],
       stores: { shop_name: "Acme Studios" }
     },
@@ -35,6 +70,7 @@ export default async function ShopPage() {
       id: "2",
       title: "Classic Denim Jacket",
       price: 120.00,
+      category: "Jacket",
       image_urls: ["https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=500&q=80"],
       stores: { shop_name: "Indigo Wear" }
     },
@@ -42,6 +78,7 @@ export default async function ShopPage() {
       id: "3",
       title: "Minimalist Sneakers",
       price: 89.99,
+      category: "Sneakers",
       image_urls: ["https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=500&q=80"],
       stores: { shop_name: "Stride" }
     },
@@ -49,6 +86,7 @@ export default async function ShopPage() {
       id: "4",
       title: "Heavyweight Hoodie",
       price: 65.00,
+      category: "Hoodie",
       image_urls: ["https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80"],
       stores: { shop_name: "Comfort Co" }
     },
@@ -56,6 +94,7 @@ export default async function ShopPage() {
       id: "5",
       title: "Vintage Wash Jeans",
       price: 95.00,
+      category: "Jeans",
       image_urls: ["https://images.unsplash.com/photo-1542272604-787c3835535d?w=500&q=80"],
       stores: { shop_name: "Indigo Wear" }
     },
@@ -63,178 +102,44 @@ export default async function ShopPage() {
       id: "6",
       title: "Chunky Knit Sweater",
       price: 78.00,
+      category: "Sweater",
       image_urls: ["https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=500&q=80"],
       stores: { shop_name: "Comfort Co" }
     }
   ];
 
-  const deletedSet = new Set(staticDeletedStores);
   const activeDbProducts = (dbProducts || []).filter(
     (p: any) => !p.store_id || !deletedSet.has(p.store_id)
   );
-  const products = activeDbProducts.length > 0 ? activeDbProducts : dummyProducts;
+
+  const products: ShopProduct[] = activeDbProducts.length > 0 ? (activeDbProducts as any) : dummyProducts;
 
   return (
-    <div className="min-h-screen bg-background">
-
+    <div className="min-h-screen bg-background flex flex-col">
       {/* ── Page Header ── */}
-      <div className="border-b border-border">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-14">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-1.5 sm:mb-3">
-            Shop All
-          </h1>
-          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-2xl">
-            Explore our complete collection of premium apparel from independent brands.
-          </p>
-        </div>
-      </div>
-
-      {/* ── Sticky Filter Chips ── */}
-      <div className="sticky top-[79px] z-30 bg-background/95 backdrop-blur border-b border-border">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-3">
-            {["All", "New Arrivals", "Tops", "Bottoms", "Outerwear", "Accessories", "Sale"].map(
-              (cat) => (
-                <button
-                  key={cat}
-                  className={`flex-shrink-0 text-xs sm:text-sm font-medium px-3.5 sm:px-4 py-1.5 rounded-full border transition-colors whitespace-nowrap
-                    ${cat === "All"
-                      ? "bg-foreground text-background border-foreground"
-                      : "bg-transparent text-muted-foreground border-border hover:border-foreground hover:text-foreground"
-                    }`}
-                >
-                  {cat}
-                </button>
-              )
-            )}
+      <div className="border-b border-border bg-card/30">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12">
+          <div className="max-w-3xl space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-primary">
+              Curated Marketplace
+            </span>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+              Shop Collections
+            </h1>
+            <p className="text-muted-foreground text-xs sm:text-sm md:text-base leading-relaxed">
+              Explore shirts, t-shirts, jeans, watches, perfumes, and designer accessories from verified independent brands.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* ── Product Grid ── */}
-      <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
-
-        {/* Results row */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            {products.length} products
-          </p>
-          <select className="text-xs sm:text-sm text-muted-foreground bg-transparent border border-border rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-foreground transition-colors outline-none">
-            <option>Newest</option>
-            <option>Price: Low to High</option>
-            <option>Price: High to Low</option>
-            <option>Best Selling</option>
-          </select>
-        </div>
-
-        {products.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
-            {products.map((product) => {
-              const { mrp, discount } = getPricingInfo(product.price);
-
-              return (
-                <div key={product.id} className="flex flex-col">
-                  <Card className="flex flex-col h-full overflow-hidden border border-border/60 shadow-none hover:shadow-md hover:border-foreground/20 transition-all duration-300 rounded-xl group">
-
-                    {/* ── Product Image ── */}
-                    <Link href={`/product/${product.id}`} className="relative block overflow-hidden">
-                      <div className="aspect-[3/4] bg-muted overflow-hidden rounded-t-xl">
-                        {product.image_urls?.[0] ? (
-                          <img
-                            src={product.image_urls[0]}
-                            alt={product.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                            No Image
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Discount Badge */}
-                      <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
-                        {discount}% OFF
-                      </span>
-                    </Link>
-
-                    {/* ── Product Info + Buttons ── */}
-                    <div className="flex flex-col flex-1 p-2.5 sm:p-3 gap-2">
-
-                      {/* Store name */}
-                      {product.store_id || product.stores?.id ? (
-                        <Link 
-                          href={`/store/${product.store_id || product.stores?.id}`}
-                          className="hover:underline text-[10px] sm:text-xs text-muted-foreground truncate leading-none block font-medium"
-                        >
-                          {product.stores?.shop_name || "Visit Store"}
-                        </Link>
-                      ) : (
-                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate leading-none">
-                          {product.stores?.shop_name || "AFRODER Store"}
-                        </p>
-                      )}
-
-                      {/* Product title */}
-                      <Link href={`/product/${product.id}`}>
-                        <h3 className="font-semibold text-[13px] sm:text-sm leading-snug line-clamp-2 hover:underline underline-offset-2">
-                          {product.title}
-                        </h3>
-                      </Link>
-
-                      {/* Pricing */}
-                      <div className="flex flex-col gap-0.5">
-                        {/* Sale price */}
-                        <p className="font-bold text-sm sm:text-base text-foreground">
-                          ₹{product.price}
-                        </p>
-                        {/* MRP crossed out + savings */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] sm:text-xs text-muted-foreground line-through">
-                            MRP ₹{mrp}
-                          </span>
-                          <span className="text-[11px] sm:text-xs text-green-600 font-medium">
-                            Save ₹{mrp - product.price}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">Incl. of all taxes</p>
-                      </div>
-
-                      {/* ── CTA Buttons ── */}
-                      <div className="mt-auto pt-1">
-                        <AddToCartButton
-                          product={{
-                            id: product.id,
-                            title: product.title,
-                            price: product.price,
-                            image_urls: product.image_urls,
-                            sizes: product.sizes,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-20 text-muted-foreground">
-            <p className="text-lg font-medium mb-2">No products found</p>
-            <p className="text-sm">Check back soon for new arrivals.</p>
-          </div>
-        )}
-
-        {/* Load More */}
-        {products.length > 0 && (
-          <div className="mt-10 sm:mt-14 flex justify-center">
-            <button className="w-full sm:w-auto min-w-[180px] px-8 py-3.5 text-sm font-medium border border-border rounded-full hover:bg-foreground hover:text-background transition-colors duration-200">
-              Load More
-            </button>
-          </div>
-        )}
-      </div>
+      {/* ── Interactive Category Filtering & Product Display ── */}
+      <Suspense fallback={<ShopLoadingSkeleton />}>
+        <ShopClient
+          initialProducts={products}
+          curatedArrivalIds={curatedIds}
+        />
+      </Suspense>
     </div>
   );
 }
