@@ -1,6 +1,7 @@
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage, isFirebaseConfigured } from "./client";
 import { supabase } from "../supabase/client";
+import { isCloudinaryConfigured, uploadToCloudinary } from "../cloudinary/storage";
 
 export interface UploadMediaOptions {
   folder?: "products" | "store_logos" | "receipts" | "media";
@@ -15,6 +16,7 @@ export function isVideoMedia(url: string): boolean {
   if (!url) return false;
   return (
     /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url) ||
+    url.includes("/video/upload/") ||
     url.includes("video%2F") ||
     url.includes("/video/")
   );
@@ -23,8 +25,9 @@ export function isVideoMedia(url: string): boolean {
 /**
  * Unified media upload handler.
  * Priority:
- * 1. Firebase Cloud Storage (GCS bucket for high-capacity images & videos)
- * 2. Graceful fallback to Supabase Storage if Firebase keys are not yet configured.
+ * 1. Cloudinary (25 GB free storage & fast CDN, zero credit card required)
+ * 2. Firebase Cloud Storage (GCS bucket for high-capacity media)
+ * 3. Graceful fallback to Supabase Storage if neither external provider is configured.
  */
 export async function uploadMediaToStorage(
   file: File,
@@ -34,6 +37,18 @@ export async function uploadMediaToStorage(
   const userId = options?.userId || "user";
   const onProgress = options?.onProgress;
 
+  // 1. Try Cloudinary if configured (25GB free storage, no credit card required)
+  if (isCloudinaryConfigured) {
+    try {
+      return await uploadToCloudinary(file, {
+        folder,
+        onProgress,
+      });
+    } catch (cldErr: any) {
+      console.warn("[Cloudinary] Upload error, falling back:", cldErr?.message || cldErr);
+    }
+  }
+
   // Sanitize filename & extension
   const rawExt = file.name.split(".").pop()?.toLowerCase() || (file.type.startsWith("video/") ? "mp4" : "jpg");
   const cleanExt = rawExt.replace(/[^a-z0-9]/g, "");
@@ -41,7 +56,7 @@ export async function uploadMediaToStorage(
   const fileName = `${userId}-${Date.now()}-${randomSuffix}.${cleanExt}`;
   const filePath = `${folder}/${fileName}`;
 
-  // 1. Try Firebase Cloud Storage if configured
+  // 2. Try Firebase Cloud Storage if configured
   if (isFirebaseConfigured && storage) {
     try {
       const storageRef = ref(storage, filePath);
@@ -153,3 +168,4 @@ export async function deleteMediaFromStorage(url: string): Promise<void> {
     console.warn("[Storage] Non-critical delete notice:", err);
   }
 }
+

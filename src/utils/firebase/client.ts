@@ -30,3 +30,4 @@ if (typeof window !== "undefined" && isFirebaseConfigured) {
 }
 
 export { app, storage };
+
