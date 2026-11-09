@@ -60,7 +60,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-20 mx-auto items-center justify-between gap-4 md:gap-8 px-4 md:px-8 relative">
+      <div className="container flex h-16 sm:h-20 mx-auto items-center justify-between gap-4 md:gap-8 px-4 md:px-8 relative">
         {/* Left: Logo */}
         <div className="flex items-center flex-1 justify-start">
           <Link href="/" className="flex items-center space-x-2.5">

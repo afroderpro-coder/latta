@@ -476,7 +476,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl relative">
+    <div className="container mx-auto px-3 sm:px-4 pt-2 sm:pt-6 pb-8 sm:pb-12 max-w-6xl relative">
       {/* ── Beautiful Top Popup Notification for Missing Size ── */}
       <AnimatePresence>
         {showSizePopup && (
@@ -519,18 +519,18 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         )}
       </AnimatePresence>
 
-      <Link href="/shop" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-8">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to shopping
+      <Link href="/shop" className="inline-flex items-center text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-2.5 sm:mb-6">
+        <ArrowLeft className="mr-1.5 sm:mr-2 h-3.5 sm:h-4 w-3.5 sm:w-4" /> Back to shopping
       </Link>
 
-      <div className="grid md:grid-cols-2 gap-12">
+      <div className="grid md:grid-cols-2 gap-6 md:gap-12">
         {/* Product Images Gallery */}
-        <div className="flex flex-col space-y-4">
+        <div className="flex flex-col space-y-3 sm:space-y-4">
           <motion.div
             ref={imageContainerRef}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-border group select-none flex items-center justify-center ${
+            className={`aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-slate-300 dark:border-zinc-800 shadow-xs group select-none flex items-center justify-center ${
               isZoomed ? "touch-none" : "touch-pan-y"
             }`}
             onTouchStart={handleTouchStart}
