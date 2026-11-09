@@ -6,7 +6,7 @@ import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut, Move, Play } from "lucide-react";
+import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomOut, Move, Play } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
@@ -530,7 +530,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             ref={imageContainerRef}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative border border-slate-300 dark:border-zinc-800 shadow-xs group select-none flex items-center justify-center ${
+            className={`aspect-[4/5] bg-secondary/10 dark:bg-zinc-900/40 rounded-2xl overflow-hidden relative shadow-xs group select-none flex items-center justify-center ${
               isZoomed ? "touch-none" : "touch-pan-y"
             }`}
             onTouchStart={handleTouchStart}
@@ -620,48 +620,26 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               </div>
             )}
 
-            {/* Top Overlay Controls: 360° Pan Hint & Zoom In/Out Buttons */}
-            {images.length > 0 && !isVideoMedia(images[selectedImageIndex] || images[0]) && (
+            {/* Top Overlay Controls: Zoom Out & Pan Hint ONLY when Zoomed In */}
+            {images.length > 0 && isZoomed && !isVideoMedia(images[selectedImageIndex] || images[0]) && (
               <>
-                {isZoomed ? (
-                  <>
-                    <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md text-white text-[11px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 z-20 pointer-events-none shadow-md">
-                      <Move className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Double-tap or pinch to exit • Drag to pan</span>
-                    </div>
+                <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md text-white text-[11px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 z-20 pointer-events-none shadow-md">
+                  <Move className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Double-tap or pinch to exit • Drag to pan</span>
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        zoomOut();
-                      }}
-                      className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/90 hover:bg-black text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 z-20 cursor-pointer active:scale-95"
-                      title="Exit Zoom"
-                    >
-                      <ZoomOut className="h-3.5 w-3.5" />
-                      <span>Exit Zoom</span>
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const container = imageContainerRef.current;
-                      if (container) {
-                        const rect = container.getBoundingClientRect();
-                        zoomToPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-                      } else {
-                        zoomToPoint(0, 0);
-                      }
-                    }}
-                    className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-black text-white backdrop-blur-md transition-all shadow-md z-10 cursor-pointer group-hover:scale-105"
-                    title="Zoom in to inspect fine details"
-                  >
-                    <ZoomIn className="h-4 w-4" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    zoomOut();
+                  }}
+                  className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/90 hover:bg-black text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 z-20 cursor-pointer active:scale-95"
+                  title="Exit Zoom"
+                >
+                  <ZoomOut className="h-3.5 w-3.5" />
+                  <span>Exit Zoom</span>
+                </button>
               </>
             )}
 
@@ -692,7 +670,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Thumbnails Row */}
           {images.length > 1 && (
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+            <div className="flex gap-3 overflow-x-auto pt-2 pb-2.5 px-1 scrollbar-none">
               {images.map((img: string, idx: number) => {
                 const isThumbVideo = isVideoMedia(img);
                 return (
@@ -702,7 +680,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                     onClick={() => onSelectThumbnail(idx)}
                     className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/10 transition-all cursor-pointer ${
                       selectedImageIndex === idx
-                        ? "border-primary ring-2 ring-primary/20 scale-105"
+                        ? "border-primary ring-2 ring-primary/30 shadow-md"
                         : "border-border opacity-70 hover:opacity-100"
                     }`}
                   >
