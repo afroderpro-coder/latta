@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { parseStoreBio, serializeStoreBio, StoreMetadata } from "@/utils/storeMetadata";
 import { LocationPicker } from "@/components/ui/LocationPicker";
+import { uploadMediaToStorage } from "@/utils/firebase/storage";
 
 export default function StoreSettingsPage() {
   const { profile, setProfile } = useAuthStore();
@@ -250,19 +251,10 @@ export default function StoreSettingsPage() {
     setMessage(null);
 
     try {
-      const fileExt = file.name.split(".").pop() || "png";
-      const fileName = `${type}-${profile.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("store_logos")
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("store_logos").getPublicUrl(filePath);
+      const publicUrl = await uploadMediaToStorage(file, {
+        folder: "store_logos",
+        userId: `${type}-${profile.id}`,
+      });
 
       if (type === "logo") {
         setLogoUrl(publicUrl);

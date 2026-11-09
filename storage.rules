@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// Firebase Cloud Storage Rules for Afroder Media Storage
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 1. Products media (photos and product videos)
+    match /products/{allPaths=**} {
+      // Public read access for customers and search engine crawlers
+      allow read: if true;
+      // Allow upload up to 50MB (handles high-res photos and 1080p product showcase videos)
+      allow write: if request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // 2. Store brand logos and banners
+    match /store_logos/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // 3. Seller verification receipts
+    match /receipts/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // Catch-all
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource.size < 50 * 1024 * 1024;
+    }
+  }
+}

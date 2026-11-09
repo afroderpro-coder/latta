@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { parseStoreBio, serializeStoreBio } from "@/utils/storeMetadata";
+import { uploadMediaToStorage } from "@/utils/firebase/storage";
 import staticDeletedStores from "@/data/deleted_stores.json";
 import {
   Clock,
@@ -845,22 +846,14 @@ export default function AuthPage({
         const userId = signUpData.user?.id;
 
         if (userId && role === "seller") {
-          // Upload receipt to Supabase storage if file is available, or use data URL fallback
+          // Upload receipt to Cloud Storage if file is available, or use data URL fallback
           let finalReceiptUrl = receiptPreview || "";
           if (receiptFile) {
             try {
-              const fileExt = receiptFile.name.split(".").pop() || "png";
-              const fileName = `receipt-${userId}-${Date.now()}.${fileExt}`;
-              const { error: uploadErr } = await supabase.storage
-                .from("store_logos")
-                .upload(fileName, receiptFile);
-
-              if (!uploadErr) {
-                const {
-                  data: { publicUrl },
-                } = supabase.storage.from("store_logos").getPublicUrl(fileName);
-                finalReceiptUrl = publicUrl;
-              }
+              finalReceiptUrl = await uploadMediaToStorage(receiptFile, {
+                folder: "receipts",
+                userId,
+              });
             } catch (storageErr) {
               console.warn("Storage upload fallback to Data URL:", storageErr);
             }

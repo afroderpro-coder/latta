@@ -20,10 +20,12 @@ import {
   Store,
   RotateCcw,
   Check,
+  Video,
 } from "lucide-react";
 import Link from "next/link";
 import { serializeStoreBio } from "@/utils/storeMetadata";
 import { ProductCategoryAndSizePicker } from "@/components/seller/ProductCategoryAndSizePicker";
+import { uploadMediaToStorage, deleteMediaFromStorage, isVideoMedia } from "@/utils/firebase/storage";
 
 const productSchema = z.object({
   title: z.string().min(2, "Title is required (minimum 2 characters)."),
@@ -52,6 +54,7 @@ export default function NewProductPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [hasDraft, setHasDraft] = useState(false);
@@ -185,46 +188,47 @@ export default function NewProductPage() {
 
     const remainingSlots = 5 - imageUrls.length;
     if (remainingSlots <= 0) {
-      setError("Maximum 5 images allowed per product.");
+      setError("Maximum 5 media items allowed per product.");
       return;
     }
 
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
     setIsUploading(true);
+    setUploadProgress(0);
     setError(null);
 
     const uploadedUrls: string[] = [];
 
     try {
-      for (const file of filesToUpload) {
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${currentUserId}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("product_images")
-          .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("product_images").getPublicUrl(filePath);
-
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const file = filesToUpload[i];
+        const publicUrl = await uploadMediaToStorage(file, {
+          folder: "products",
+          userId: currentUserId,
+          onProgress: (p) => {
+            const overall = Math.round(((i + p / 100) / filesToUpload.length) * 100);
+            setUploadProgress(overall);
+          },
+        });
         uploadedUrls.push(publicUrl);
       }
 
       setImageUrls((prev) => [...prev, ...uploadedUrls]);
     } catch (err: any) {
-      setError("Error uploading images: " + err.message);
+      setError("Error uploading media: " + err.message);
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
       e.target.value = "";
     }
   };
 
   const removeImage = (indexToRemove: number) => {
+    const targetUrl = imageUrls[indexToRemove];
     setImageUrls((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    if (targetUrl) {
+      deleteMediaFromStorage(targetUrl).catch(() => {});
+    }
   };
 
   const setAsCoverImage = (indexToPromote: number) => {
@@ -444,15 +448,15 @@ export default function NewProductPage() {
             categoryError={errors.category?.message}
           />
 
-          {/* ── Multiple Product Images (4 to 5 Photos) ── */}
+          {/* ── Multiple Product Media (Photos & Videos) ── */}
           <div className="space-y-3 pt-2 border-t border-border">
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-semibold text-foreground">
-                  Product Images ({imageUrls.length}/5)
+                  Product Media ({imageUrls.length}/5)
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  Upload between 1 to 5 images (front view, back view, close-up details). First photo is the main cover.
+                  Upload up to 5 high-resolution photos or videos. First item is the main store cover.
                 </p>
               </div>
               <span className="text-xs text-muted-foreground font-medium">
@@ -460,52 +464,64 @@ export default function NewProductPage() {
               </span>
             </div>
 
-            {/* Images Grid */}
+            {/* Images & Videos Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-1">
-              {imageUrls.map((url, index) => (
-                <div
-                  key={url}
-                  className={`relative aspect-[3/4] rounded-xl overflow-hidden border-2 shadow-sm group bg-muted ${
-                    index === 0 ? "border-primary ring-2 ring-primary/20" : "border-border"
-                  }`}
-                >
-                  <img src={url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+              {imageUrls.map((url, index) => {
+                const isVideo = isVideoMedia(url);
+                return (
+                  <div
+                    key={url}
+                    className={`relative aspect-[3/4] rounded-xl overflow-hidden border-2 shadow-sm group bg-muted ${
+                      index === 0 ? "border-primary ring-2 ring-primary/20" : "border-border"
+                    }`}
+                  >
+                    {isVideo ? (
+                      <div className="w-full h-full relative bg-black flex items-center justify-center">
+                        <video src={url} className="w-full h-full object-cover" muted playsInline />
+                        <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 shadow">
+                          <Video className="w-3 h-3 text-amber-400" /> Video
+                        </span>
+                      </div>
+                    ) : (
+                      <img src={url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+                    )}
 
-                  {/* Main / Cover badge */}
-                  {index === 0 ? (
-                    <span className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-                      Cover
-                    </span>
-                  ) : (
+                    {/* Main / Cover badge */}
+                    {index === 0 ? (
+                      <span className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                        Cover
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAsCoverImage(index)}
+                        className="absolute top-1.5 left-1.5 bg-black/70 hover:bg-black text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
+                        title="Set as main cover"
+                      >
+                        <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                        <span>Set Cover</span>
+                      </button>
+                    )}
+
+                    {/* Delete button */}
                     <button
                       type="button"
-                      onClick={() => setAsCoverImage(index)}
-                      className="absolute top-1.5 left-1.5 bg-black/70 hover:bg-black text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
-                      title="Set as main cover image"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-red-600 text-white transition-colors cursor-pointer"
+                      title="Remove item"
                     >
-                      <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                      <span>Set Cover</span>
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  )}
+                  </div>
+                );
+              })}
 
-                  {/* Delete button */}
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-red-600 text-white transition-colors cursor-pointer"
-                    title="Remove image"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-
-              {/* Upload Slot (if less than 5 images) */}
+              {/* Upload Slot (if less than 5 items) */}
               {imageUrls.length < 5 && (
                 <label className="relative aspect-[3/4] rounded-xl border-2 border-dashed border-border hover:border-primary/60 bg-muted/20 hover:bg-muted/40 transition-all flex flex-col items-center justify-center cursor-pointer p-3 text-center group">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     multiple
                     onChange={handleMultipleImagesUpload}
                     disabled={isUploading}
@@ -514,15 +530,17 @@ export default function NewProductPage() {
                   {isUploading ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                      <span className="text-[11px] text-muted-foreground">Uploading...</span>
+                      <span className="text-[11px] font-semibold text-primary">
+                        {uploadProgress !== null ? `Uploading ${uploadProgress}%` : "Uploading..."}
+                      </span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:text-primary transition-colors">
                       <div className="p-2 rounded-full bg-muted group-hover:bg-primary/10">
                         <Plus className="h-5 w-5" />
                       </div>
-                      <span className="text-xs font-medium">Add Photo</span>
-                      <span className="text-[10px] text-muted-foreground/70">PNG, JPG up to 2MB</span>
+                      <span className="text-xs font-medium">Add Photo / Video</span>
+                      <span className="text-[10px] text-muted-foreground/70">Photos, Videos (Cloud Storage)</span>
                     </div>
                   )}
                 </label>

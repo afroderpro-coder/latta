@@ -6,12 +6,13 @@ import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useCartStore } from "@/store/useCartStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut, Move } from "lucide-react";
+import { ArrowLeft, ShoppingBag, ChevronLeft, ChevronRight, Check, AlertCircle, Zap, X, ZoomIn, ZoomOut, Move, Play } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 import { GoogleLoginPromptModal } from "@/components/auth/GoogleLoginPromptModal";
 import { detectCategoryConfig, getProductTypeNoun, isFreeSizeOrSingle } from "@/utils/productCategories";
+import { isVideoMedia } from "@/utils/firebase/storage";
 
 const fallbackRelatedProducts = [
   {
@@ -561,41 +562,56 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   }}
                   className="w-full h-full absolute inset-0 overflow-hidden flex items-center justify-center select-none"
                 >
-                  {/* Inner Zoom & Pan Engine - contained 100% inside the slide */}
-                  <motion.div
-                    style={{ x: zoomX, y: zoomY, scale: zoomScale }}
-                    drag={isZoomed ? true : false}
-                    dragConstraints={zoomConstraints}
-                    dragElastic={0.12}
-                    dragTransition={{ bounceStiffness: 450, bounceDamping: 28 }}
-                    onDragStart={() => {
-                      isDraggingPan.current = true;
-                    }}
-                    onDragEnd={(e, info) => {
-                      if (isZoomed) {
-                        const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
-                        if (dragDist < 6) {
-                          zoomOut();
+                  {/* Inner Media Engine */}
+                  {isVideoMedia(images[selectedImageIndex] || images[0]) ? (
+                    <div className="w-full h-full relative bg-black flex items-center justify-center">
+                      <video
+                        src={images[selectedImageIndex] || images[0]}
+                        controls
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    /* Inner Zoom & Pan Engine - contained 100% inside the slide */
+                    <motion.div
+                      style={{ x: zoomX, y: zoomY, scale: zoomScale }}
+                      drag={isZoomed ? true : false}
+                      dragConstraints={zoomConstraints}
+                      dragElastic={0.12}
+                      dragTransition={{ bounceStiffness: 450, bounceDamping: 28 }}
+                      onDragStart={() => {
+                        isDraggingPan.current = true;
+                      }}
+                      onDragEnd={(e, info) => {
+                        if (isZoomed) {
+                          const dragDist = Math.sqrt(info.offset.x * info.offset.x + info.offset.y * info.offset.y);
+                          if (dragDist < 6) {
+                            zoomOut();
+                          }
                         }
-                      }
-                      setTimeout(() => {
-                        isDraggingPan.current = false;
-                      }, 80);
-                    }}
-                    className={`w-full h-full flex items-center justify-center ${
-                      isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
-                    }`}
-                    onClick={handleImageClick}
-                    onDoubleClick={handleDoubleClick}
-                    title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click or click to zoom in • Swipe to change photos"}
-                  >
-                    <img
-                      src={images[selectedImageIndex] || images[0]}
-                      alt={product.title}
-                      className="w-full h-full object-cover select-none pointer-events-none"
-                      draggable={false}
-                    />
-                  </motion.div>
+                        setTimeout(() => {
+                          isDraggingPan.current = false;
+                        }, 80);
+                      }}
+                      className={`w-full h-full flex items-center justify-center ${
+                        isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
+                      }`}
+                      onClick={handleImageClick}
+                      onDoubleClick={handleDoubleClick}
+                      title={isZoomed ? "Double-click or tap to zoom out • Drag to pan" : "Double-click or click to zoom in • Swipe to change photos"}
+                    >
+                      <img
+                        src={images[selectedImageIndex] || images[0]}
+                        alt={product.title}
+                        className="w-full h-full object-cover select-none pointer-events-none"
+                        draggable={false}
+                      />
+                    </motion.div>
+                  )}
                 </motion.div>
               </AnimatePresence>
             ) : (
@@ -605,7 +621,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             )}
 
             {/* Top Overlay Controls: 360° Pan Hint & Zoom In/Out Buttons */}
-            {images.length > 0 && (
+            {images.length > 0 && !isVideoMedia(images[selectedImageIndex] || images[0]) && (
               <>
                 {isZoomed ? (
                   <>
@@ -677,20 +693,32 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           {/* Thumbnails Row */}
           {images.length > 1 && (
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-              {images.map((img: string, idx: number) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => onSelectThumbnail(idx)}
-                  className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/10 transition-all cursor-pointer ${
-                    selectedImageIndex === idx
-                      ? "border-primary ring-2 ring-primary/20 scale-105"
-                      : "border-border opacity-70 hover:opacity-100"
-                  }`}
-                >
-                  <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
-                </button>
-              ))}
+              {images.map((img: string, idx: number) => {
+                const isThumbVideo = isVideoMedia(img);
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => onSelectThumbnail(idx)}
+                    className={`relative aspect-[3/4] w-20 flex-shrink-0 rounded-xl overflow-hidden border-2 bg-secondary/10 transition-all cursor-pointer ${
+                      selectedImageIndex === idx
+                        ? "border-primary ring-2 ring-primary/20 scale-105"
+                        : "border-border opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    {isThumbVideo ? (
+                      <div className="w-full h-full relative bg-black flex items-center justify-center">
+                        <video src={img} className="w-full h-full object-cover" muted playsInline />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <Play className="w-4 h-4 text-white fill-white" />
+                        </span>
+                      </div>
+                    ) : (
+                      <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
