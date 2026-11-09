@@ -20,6 +20,11 @@ import {
   ExternalLink,
   CheckCircle2,
   Sparkles,
+  Lock,
+  Key,
+  Eye,
+  EyeOff,
+  ShieldCheck,
 } from "lucide-react";
 import { parseStoreBio, serializeStoreBio, StoreMetadata } from "@/utils/storeMetadata";
 import { LocationPicker } from "@/components/ui/LocationPicker";
@@ -55,6 +60,13 @@ export default function StoreSettingsPage() {
   const [existingOrders, setExistingOrders] = useState<any[]>([]);
 
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Account Security / Password Change
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const SETTINGS_DRAFT_KEY = `afroder_draft_seller_settings_${profile?.id || "default"}`;
   const [hasDraft, setHasDraft] = useState(false);
@@ -374,6 +386,49 @@ export default function StoreSettingsPage() {
     }
   };
 
+  const handlePasswordChange = async () => {
+    setPasswordMessage(null);
+
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMessage({
+        type: "error",
+        text: "New password must be at least 6 characters long.",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({
+        type: "error",
+        text: "Passwords do not match. Please re-enter both passwords.",
+      });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      setPasswordMessage({
+        type: "success",
+        text: "Your password has been changed successfully! Use your new password the next time you sign in.",
+      });
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      setPasswordMessage({
+        type: "error",
+        text: err?.message || "Failed to update password. Please try again.",
+      });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -673,6 +728,96 @@ export default function StoreSettingsPage() {
             placeholder="e.g. Shop #07, Market Complex, Main Road, Nuh, Haryana 122105 OR paste Google Maps share link"
             helperText="Enter your physical boutique address, paste a Google Maps link, or click 'Live GPS Location' above. Customers visiting your public storefront can tap to get turn-by-turn Google Maps driving directions directly to your shop."
           />
+        </div>
+
+        {/* ── Section 5: Account Security & Change Password ── */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Account Security & Password</h2>
+                <p className="text-xs text-muted-foreground">
+                  Update the password you use to sign in to your Afroder seller account.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1 font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span>Bcrypt Encrypted</span>
+            </span>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 pt-1">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                <span>NEW PASSWORD *</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer select-none"
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  <span>{showPassword ? "Hide" : "Show"}</span>
+                </button>
+              </label>
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter new password (min. 6 characters)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="h-11"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                CONFIRM NEW PASSWORD *
+              </label>
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Re-type your new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="h-11"
+              />
+            </div>
+          </div>
+
+          {passwordMessage && (
+            <div
+              className={`p-3.5 rounded-xl text-xs font-medium border flex items-center gap-2 ${
+                passwordMessage.type === "success"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                  : "bg-destructive/10 border-destructive/30 text-destructive"
+              }`}
+            >
+              {passwordMessage.type === "success" ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              ) : (
+                <X className="w-4 h-4 shrink-0" />
+              )}
+              <span>{passwordMessage.text}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-1">
+            <Button
+              type="button"
+              onClick={handlePasswordChange}
+              disabled={isUpdatingPassword || !newPassword}
+              isLoading={isUpdatingPassword}
+              className="h-10 px-5 text-xs font-semibold"
+            >
+              <Key className="w-3.5 h-3.5 mr-1.5" />
+              Update Password
+            </Button>
+            <span className="text-[11px] text-muted-foreground">
+              Minimum 6 characters required
+            </span>
+          </div>
         </div>
 
         {/* Status Message */}
